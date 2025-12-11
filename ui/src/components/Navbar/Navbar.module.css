@@ -1,0 +1,64 @@
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    background: rgba(5, 5, 5, 0.7);
+    /* translucent background */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo span {
+    color: var(--primary);
+}
+
+.navLinks {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+}
+
+.link {
+    font-size: 0.9rem;
+    color: var(--secondary);
+    transition: color 0.2s ease;
+    font-weight: 500;
+}
+
+.link:hover {
+    color: var(--foreground);
+}
+
+.cta {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    color: var(--foreground);
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.cta:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--secondary);
+}

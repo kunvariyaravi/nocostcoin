@@ -1,0 +1,23 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Keys/Secrets
+core/nocostcoin_db*
+core/wallet_*.key
+.env
+.env*.local
+
+# Logs
+**/*.log
+
+# OS
+**/.DS_Store
+
+# Scripts
+*.ps1
+!launch_devnet.ps1
+
+# IDEs
+.vscode/
+.idea/

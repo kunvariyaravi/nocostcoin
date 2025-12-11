@@ -1,0 +1,87 @@
+.container {
+    min-height: 100vh;
+    padding: 8rem 2rem 4rem;
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+.header {
+    max-width: 800px;
+    margin: 0 auto 3rem;
+    text-align: center;
+}
+
+.title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to right, #fff, #888);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 1.1rem;
+}
+
+.searchContainer {
+    max-width: 800px;
+    margin: 0 auto 4rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem;
+    border-radius: 8px;
+    color: #fff;
+    font-family: monospace;
+    font-size: 1rem;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.button {
+    background: var(--primary);
+    color: #000;
+    border: none;
+    padding: 0 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.result {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.json {
+    font-family: monospace;
+    white-space: pre-wrap;
+    color: #ccc;
+    overflow-x: auto;
+}
+
+.error {
+    color: #ff4444;
+    text-align: center;
+}
+
+.label {
+    color: #888;
+    margin-bottom: 0.5rem;
+    display: block;
+}
