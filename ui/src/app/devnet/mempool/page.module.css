@@ -1,0 +1,80 @@
+.container {
+    min-height: 100vh;
+    padding: 8rem 2rem 4rem;
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+.header {
+    max-width: 1200px;
+    margin: 0 auto 3rem;
+}
+
+.title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 1.1rem;
+}
+
+.list {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.txCard {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.txCard:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.label {
+    color: #888;
+}
+
+.value,
+.hash {
+    font-family: monospace;
+    color: #ccc;
+}
+
+.hash {
+    color: var(--primary);
+}
+
+.amount {
+    color: #00ff88;
+    font-weight: bold;
+}
+
+.empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #666;
+    padding: 4rem;
+}

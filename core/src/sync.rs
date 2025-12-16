@@ -21,10 +21,18 @@ pub enum SyncEvent {
     SyncFailed { reason: String },
 }
 
+/// Enhanced peer state
+#[derive(Debug, Clone, PartialEq)]
+pub struct PeerState {
+    pub height: u64,
+    pub address: Option<String>,
+    pub protocol: Option<String>,
+}
+
 /// Manages blockchain synchronization with peers
 pub struct SyncManager {
     state: SyncState,
-    peer_heights: HashMap<PeerId, u64>,
+    peers: HashMap<PeerId, PeerState>,
     event_tx: mpsc::UnboundedSender<SyncEvent>,
 }
 
@@ -32,14 +40,30 @@ impl SyncManager {
     pub fn new(event_tx: mpsc::UnboundedSender<SyncEvent>) -> Self {
         Self {
             state: SyncState::Idle,
-            peer_heights: HashMap::new(),
+            peers: HashMap::new(),
             event_tx,
         }
     }
 
     /// Update peer's chain info
     pub fn update_peer_info(&mut self, peer: PeerId, height: u64) {
-        self.peer_heights.insert(peer, height);
+        let entry = self.peers.entry(peer).or_insert(PeerState { 
+            height, 
+            address: None, 
+            protocol: None 
+        });
+        entry.height = height;
+    }
+
+    /// Update peer's metadata
+    pub fn update_peer_metadata(&mut self, peer: PeerId, address: Option<String>, protocol: Option<String>) {
+         let entry = self.peers.entry(peer).or_insert(PeerState { 
+            height: 0, 
+            address: None, 
+            protocol: None 
+        });
+        if let Some(addr) = address { entry.address = Some(addr); }
+        if let Some(proto) = protocol { entry.protocol = Some(proto); }
     }
 
     /// Check if we need to sync based on our height vs peers
@@ -49,11 +73,11 @@ impl SyncManager {
         }
 
         // Find the peer with the highest chain
-        self.peer_heights
+        self.peers
             .iter()
-            .filter(|&(_, &height)| height > our_height)
-            .max_by_key(|&(_, &height)| height)
-            .map(|(peer, &height)| (*peer, height))
+            .filter(|&(_, peer_state)| peer_state.height > our_height)
+            .max_by_key(|&(_, peer_state)| peer_state.height)
+            .map(|(id, peer_state)| (*id, peer_state.height))
     }
 
     /// Start syncing with a peer
@@ -148,6 +172,11 @@ impl SyncManager {
     /// Get current sync state
     pub fn get_state(&self) -> &SyncState {
         &self.state
+    }
+
+    /// Get connected peers and their heights
+    pub fn get_peers(&self) -> HashMap<PeerId, PeerState> {
+        self.peers.clone()
     }
 }
 

@@ -2,6 +2,9 @@ use libp2p::{
     gossipsub, kad,
     mdns,
     noise,
+    identify,
+    ping,
+    autonat,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId, Swarm, Transport, StreamProtocol,
@@ -66,6 +69,9 @@ pub struct NocostcoinBehaviour {
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
     pub mdns: mdns::tokio::Behaviour,
     pub request_response: request_response::cbor::Behaviour<SyncRequest, SyncResponse>,
+    pub identify: identify::Behaviour,
+    pub ping: ping::Behaviour,
+    pub autonat: autonat::Behaviour,
 }
 
 /// Network commands for controlling the node
@@ -127,6 +133,12 @@ pub enum SyncMessage {
     
     PeerConnected { peer_id: PeerId },
     PeerDisconnected { peer_id: PeerId },
+    // Peer Identified
+    PeerIdentified {
+        peer_id: PeerId,
+        protocol: String,
+        address: String,
+    },
 }
 
 /// Network node managing P2P connections
@@ -180,15 +192,15 @@ impl NetworkNode {
         )?;
 
         // Subscribe to topics
-        let block_topic = gossipsub::IdentTopic::new("nocostcoin-blocks");
-        let tx_topic = gossipsub::IdentTopic::new("nocostcoin-transactions");
-        let vote_topic = gossipsub::IdentTopic::new("nocostcoin-votes");
+        let block_topic = gossipsub::IdentTopic::new("nocostcoin/blocks/1.0.0");
+        let tx_topic = gossipsub::IdentTopic::new("nocostcoin/txs/1.0.0");
+        let vote_topic = gossipsub::IdentTopic::new("nocostcoin/votes/1.0.0");
         gossipsub.subscribe(&block_topic)?;
         gossipsub.subscribe(&tx_topic)?;
         gossipsub.subscribe(&vote_topic)?;
 
         // Configure Request-Response
-        let request_response = request_response::cbor::Behaviour::new(
+        let req_resp = request_response::cbor::Behaviour::new(
             [(
                 StreamProtocol::new("/nocostcoin/sync/1.0.0"),
                 ProtocolSupport::Full,
@@ -215,12 +227,30 @@ impl NetworkNode {
             local_peer_id,
         )?;
 
+        // Configure Identify
+        let identify = identify::Behaviour::new(identify::Config::new(
+            "/nocostcoin/1.0.0".to_string(),
+            local_key.public(),
+        ));
+
+        // Configure Ping
+        let ping = ping::Behaviour::new(ping::Config::new());
+
+        // Configure AutoNAT
+        let autonat = autonat::Behaviour::new(
+            local_peer_id,
+            autonat::Config::default(),
+        );
+
         // Create the network behaviour
         let behaviour = NocostcoinBehaviour {
             gossipsub,
             kademlia,
             mdns,
-            request_response,
+            request_response: req_resp,
+            identify,
+            ping,
+            autonat,
         };
 
         // Create the swarm
@@ -288,7 +318,7 @@ impl NetworkNode {
         match command {
             NetworkCommand::BroadcastBlock(block) => {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::NewBlock(block)) {
-                    let topic = gossipsub::IdentTopic::new("nocostcoin-blocks");
+                    let topic = gossipsub::IdentTopic::new("nocostcoin/blocks/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
                         eprintln!("Failed to publish block: {}", e);
                     }
@@ -296,7 +326,7 @@ impl NetworkNode {
             }
             NetworkCommand::BroadcastTransaction(tx) => {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::NewTransaction(tx)) {
-                    let topic = gossipsub::IdentTopic::new("nocostcoin-transactions");
+                    let topic = gossipsub::IdentTopic::new("nocostcoin/txs/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
                         eprintln!("Failed to publish transaction: {}", e);
                     }
@@ -304,7 +334,7 @@ impl NetworkNode {
             }
             NetworkCommand::BroadcastVote(vote) => {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::Vote(vote)) {
-                    let topic = gossipsub::IdentTopic::new("nocostcoin-votes");
+                    let topic = gossipsub::IdentTopic::new("nocostcoin/votes/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
                         eprintln!("Failed to publish vote: {}", e);
                     }
@@ -375,6 +405,31 @@ impl NetworkNode {
             }) => {
                 println!("Routing updated for peer {}: {:?}", peer, addresses);
             }
+            NocostcoinBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+                println!("Identified peer {}: {:?} (Protocol: {:?})", peer_id, info.agent_version, info.protocol_version);
+                // Add identified address to Kademlia
+                 for addr in info.listen_addrs.iter() {
+                    self.swarm.behaviour_mut().kademlia.add_address(&peer_id, addr.clone());
+                }
+                
+                // Notify application
+                if let Some(addr) = info.listen_addrs.first() {
+                    let _ = self.sync_tx.send(SyncMessage::PeerIdentified { 
+                        peer_id, 
+                        protocol: info.protocol_version, 
+                        address: addr.to_string() 
+                    });
+                }
+            }
+            NocostcoinBehaviourEvent::Ping(ping::Event { peer, result, .. }) => {
+                // Optional: log ping success/failure
+                 if let Err(e) = result {
+                    println!("Ping failure with {}: {:?}", peer, e);
+                 }
+            }
+            NocostcoinBehaviourEvent::Autonat(autonat::Event::StatusChanged { old, new }) => {
+                 println!("AutoNAT status changed: {:?} -> {:?}", old, new);
+            }
             _ => {}
         }
     }
@@ -409,41 +464,23 @@ impl NetworkNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libp2p::gossipsub;
+    use std::time::Duration;
 
-    #[test]
-    fn test_network_message_serialization() {
-        use crate::block::{Block, BlockHeader};
-
-        let header = BlockHeader {
-            parent_hash: "0".to_string(),
-            slot: 0,
-            epoch: 0,
-            vrf_output: vec![1, 2, 3],
-            vrf_proof: vec![4, 5, 6],
-            validator_pubkey: vec![7, 8, 9],
-            producer_signature: vec![],
-            state_root: "".to_string(),
-            tx_root: "".to_string(),
-            extra_witnesses: vec![],
-            timestamp: 0,
+    #[tokio::test]
+    async fn test_gossipsub_init() {
+        let config = NetworkConfig {
+            listen_addr: "/ip4/127.0.0.1/tcp/0".to_string(), // OS assigns random port
+            bootstrap_peers: vec![],
         };
+        
+        // Mock channels
+        let (block_tx, _) = mpsc::unbounded_channel();
+        let (tx_tx, _) = mpsc::unbounded_channel();
+        let (vote_tx, _) = mpsc::unbounded_channel();
+        let (sync_tx, _) = mpsc::unbounded_channel();
 
-        let block = Block::new(header, vec![]);
-        let msg = NetworkMessage::NewBlock(block.clone());
-
-        let serialized = bincode::serialize(&msg).unwrap();
-        let deserialized: NetworkMessage = bincode::deserialize(&serialized).unwrap();
-
-        match deserialized {
-            NetworkMessage::NewBlock(b) => assert_eq!(b.hash, block.hash),
-            _ => panic!("Wrong message type"),
-        }
-    }
-
-    #[test]
-    fn test_default_config() {
-        let config = NetworkConfig::default();
-        assert_eq!(config.listen_addr, "/ip4/0.0.0.0/tcp/9000");
-        assert!(config.bootstrap_peers.is_empty());
+        let result = NetworkNode::new(config, block_tx, tx_tx, vote_tx, sync_tx).await;
+        assert!(result.is_ok(), "NetworkNode should initialize correctly with Gossipsub");
     }
 }

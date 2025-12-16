@@ -9,7 +9,8 @@
 ## 🌟 Key Features
 
 ### Consensus Innovation
-- **Proof of Determinism (PoD)** - Deterministic leader schedule with VRF verification
+- **Proof of Determinism (PoD)** - Deterministic leader schedule with VRF verification ([Read Whitepaper](WHITEPAPER.md))
+- **Consensus Innovation**
 - **Stake-Weighted Selection** - Validators weighted by stake amount
 - **Fallback Mechanism** - Backup validators ensure liveness (1-second delay)
 - **Chained Randomness** - Prevents VRF grinding attacks

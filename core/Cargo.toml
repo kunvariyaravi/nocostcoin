@@ -9,9 +9,10 @@ bincode = "1.3"
 chrono = "0.4.42"
 futures = "0.3"
 hex = "0.4.3"
-libp2p = { version = "0.54", features = ["kad", "gossipsub", "mdns", "noise", "tcp", "tokio", "yamux", "macros", "request-response", "cbor"] }
+libp2p = { version = "0.54", features = ["kad", "gossipsub", "mdns", "noise", "tcp", "tokio", "yamux", "macros", "request-response", "cbor", "identify", "ping", "autonat"] }
 rand = "0.8"
 rand_core = "0.6"
+bip39 = "2.0"
 
 schnorrkel = "0.11.5"
 serde = { version = "1.0.228", features = ["derive"] }

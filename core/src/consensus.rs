@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::{Block, BlockHeader};
 use sha2::Digest;
 use chrono::Utc;
 use crate::validator::ValidatorSet;

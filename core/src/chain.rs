@@ -59,13 +59,20 @@ impl Chain {
             _ => return false, // Parent not found
         };
 
+
+
         // 1b. Equivocation Detection (Double Signing)
         let slot = block.header.slot;
         let validator_pubkey = block.header.validator_pubkey.clone();
         let key = (slot, validator_pubkey.clone());
         
-        if let Some(existing_hash) = self.seen_headers.get(&key) {
-            if existing_hash != &block.hash {
+        // Check memory first, then disk
+        let existing_hash_opt = self.seen_headers.get(&key).cloned().or_else(|| {
+             self.storage.get_seen_header(slot, &validator_pubkey).ok().flatten()
+        });
+
+        if let Some(existing_hash) = existing_hash_opt {
+            if existing_hash != block.hash {
                 println!("EQUIVOCATION DETECTED! Validator {:?} signed two different blocks for slot {}", 
                     validator_pubkey, slot);
                 println!("Existing block: {}, New block: {}", existing_hash, block.hash);
@@ -81,8 +88,11 @@ impl Chain {
                 return false;
             }
         } else {
-            // Record this block header
+            // Record this block header in memory and disk
             self.seen_headers.insert(key, block.hash.clone());
+            if let Err(e) = self.storage.store_seen_header(slot, &validator_pubkey, &block.hash) {
+                println!("Failed to persist seen header: {}", e);
+            }
         }
 
         // 2. Consensus / PoS Validation
@@ -147,14 +157,8 @@ impl Chain {
         // Validate transaction
         tx.validate()?;
 
-        // Check nonce
-        let expected_nonce = self.state.get_nonce(&tx.sender);
-        if tx.nonce != expected_nonce {
-            return Err(format!("Invalid nonce. Expected {}, got {}", expected_nonce, tx.nonce));
-        }
-
-        // Execute transfer
-        self.state.transfer(&tx.sender, tx.receiver.clone(), tx.amount)?;
+        // Execute transaction logic
+        self.state.apply_transaction(tx)?;
 
         Ok(())
     }
@@ -228,6 +232,11 @@ impl Chain {
             return false; // Already voted
         }
         votes.push(vote.clone());
+        
+        // Persist vote
+        if let Err(e) = self.storage.store_vote(&vote) {
+            println!("Failed to store vote: {}", e);
+        }
 
         // 4. Check for Finality
         self.check_finality(&vote.block_hash);
@@ -389,8 +398,8 @@ mod tests {
         block.header.vrf_output = vrf_preout.to_bytes().to_vec();
         block.header.vrf_proof = vrf_proof.to_bytes().to_vec();
         
-        let tx1 = Transaction::new(sender.clone(), receiver.clone(), 10, 0, &sender_pair); // Valid
-        let tx2 = Transaction::new(sender.clone(), receiver.clone(), 1000, 1, &sender_pair); // Invalid (nsf)
+        let tx1 = Transaction::new(sender.clone(), receiver.clone(), crate::transaction::TransactionData::NativeTransfer { amount: 10 }, 0, &sender_pair); // Valid
+        let tx2 = Transaction::new(sender.clone(), receiver.clone(), crate::transaction::TransactionData::NativeTransfer { amount: 1000 }, 1, &sender_pair); // Invalid (nsf)
 
         block.transactions = vec![tx1, tx2];
 

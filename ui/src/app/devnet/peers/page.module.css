@@ -1,0 +1,70 @@
+.container {
+    min-height: 100vh;
+    padding: 8rem 2rem 4rem;
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+.header {
+    max-width: 1200px;
+    margin: 0 auto 3rem;
+}
+
+.title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 1.1rem;
+}
+
+.list {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.peerCard {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.peerCard:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+}
+
+.peerInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.peerId {
+    color: var(--primary);
+    font-family: monospace;
+    font-size: 1.1rem;
+}
+
+.peerHeight {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.empty {
+    text-align: center;
+    color: #666;
+    padding: 4rem;
+}

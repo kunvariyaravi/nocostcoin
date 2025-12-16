@@ -28,10 +28,48 @@ impl Mempool {
         // 2. Basic Validation (Signature)
         tx.validate()?;
 
-        // 3. Check Balance
-        let balance = state.get_balance(&tx.sender);
-        if balance < tx.amount {
-            return Err(format!("Insufficient balance. Available: {}, Required: {}", balance, tx.amount));
+        // 3. Check Balance (based on transaction type)
+        match &tx.data {
+            crate::transaction::TransactionData::NativeTransfer { amount } => {
+                let balance = state.get_balance(&tx.sender);
+                if balance < *amount {
+                    return Err(format!("Insufficient balance. Available: {}, Required: {}", balance, amount));
+                }
+            },
+            crate::transaction::TransactionData::TransferAsset { asset_id, amount } => {
+                 // Check asset balance
+                 let account = state.get_account(&tx.sender).ok_or("Sender account not found")?;
+                 let balance = account.assets.get(asset_id).cloned().unwrap_or(0);
+                 if balance < *amount {
+                      return Err(format!("Insufficient asset balance. Available: {}, Required: {}", balance, amount));
+                 }
+            },
+            crate::transaction::TransactionData::CreateAsset { .. } => {
+                // Creation might have a fee in the future
+            },
+            crate::transaction::TransactionData::OpenChannel { amount, .. } => {
+                let balance = state.get_balance(&tx.sender);
+                if balance < *amount {
+                    return Err(format!("Insufficient balance for channel deposit. Available: {}, Required: {}", balance, amount));
+                }
+            },
+            crate::transaction::TransactionData::CloseChannel { channel_id, .. } => {
+                 if !state.channels.contains_key(channel_id) {
+                     return Err("Channel does not exist".to_string());
+                 }
+            },
+             crate::transaction::TransactionData::DelegateSpend { .. } => {
+                 // Nothing to check against state for setting up delegate
+            },
+            crate::transaction::TransactionData::LendingSupply { .. } |
+            crate::transaction::TransactionData::LendingWithdraw { .. } |
+            crate::transaction::TransactionData::LendingBorrow { .. } |
+            crate::transaction::TransactionData::LendingRepay { .. } => {
+                // Complex validation happens in execution
+            },
+            _ => {
+                // Other types logic
+            }
         }
 
         // 4. Check Nonce
@@ -74,6 +112,11 @@ impl Mempool {
     pub fn len(&self) -> usize {
         self.transactions.len()
     }
+
+    /// Get all transactions in the mempool
+    pub fn get_all(&self) -> Vec<Transaction> {
+        self.transactions.values().cloned().collect()
+    }
 }
 
 #[cfg(test)]
@@ -103,7 +146,7 @@ mod tests {
         let tx = Transaction::new(
             sender_addr.clone(),
             receiver_addr.clone(),
-            50,
+            crate::transaction::TransactionData::NativeTransfer { amount: 50 },
             0,
             &sender_keypair
         );

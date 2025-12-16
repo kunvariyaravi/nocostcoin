@@ -18,7 +18,7 @@ export default function Whitepaper() {
                 <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>1. Abstract</h2>
                     <p>
-                        Cryptocurrencies notoriously suffer from the "blockchain trilemma": the difficulty of achieving decentralization, security, and scalability simultaneously. Nocostcoin proposes a novel solution using **Proof of Determinism (PoD)**, a consensus mechanism that eliminates probabilistic forks and competition. By combining this with **Hidden Leader Election (SLE)** and a **Zero-Fee** model protected by client-side Proof-of-Work, Nocostcoin achieves instant finality, robust DoS resistance, and infinite economic accessibility.
+                        Cryptocurrencies notoriously suffer from the &quot;blockchain trilemma&quot;: the difficulty of achieving decentralization, security, and scalability simultaneously. Nocostcoin proposes a novel solution using **Proof of Determinism (PoD)**, a consensus mechanism that eliminates probabilistic forks and competition. By combining this with **Hidden Leader Election (SLE)** and a **Zero-Fee** model protected by client-side Proof-of-Work, Nocostcoin achieves instant finality, robust DoS resistance, and infinite economic accessibility.
                     </p>
                 </section>
 
