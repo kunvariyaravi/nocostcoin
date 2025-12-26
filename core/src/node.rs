@@ -1,3 +1,4 @@
+use crate::config::AppConfig;
 use crate::network::{NetworkConfig, NetworkNode, SyncMessage};
 use crate::crypto::Crypto;
 use crate::wallet::Wallet;
@@ -10,14 +11,10 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::vote::Vote;
-
-pub struct NodeConfig {
-    pub port: u16,
-    pub bootstrap_peers: Vec<String>,
-}
+use tracing::{info, error, warn};
 
 pub struct Node {
-    config: NodeConfig,
+    config: AppConfig,
 }
 
 enum CliCommand {
@@ -28,19 +25,19 @@ enum CliCommand {
 }
 
 impl Node {
-    pub fn new(config: NodeConfig) -> Self {
+    pub fn new(config: AppConfig) -> Self {
         Self { config }
     }
 
     pub async fn run(self) {
-        println!("Starting Nocostcoin Node on port {}...", self.config.port);
+        info!("Starting Nocostcoin Node on port {}...", self.config.network.port);
 
-        let port = self.config.port;
+        let port = self.config.network.port;
 
-        // Setup network configuration
+        // Network configuration
         let network_config = NetworkConfig {
-            listen_addr: format!("/ip4/0.0.0.0/tcp/{}", port),
-            bootstrap_peers: self.config.bootstrap_peers.clone(),
+            listen_addr: self.config.network.listen_addr.clone(),
+            bootstrap_peers: self.config.network.bootstrap_peers.clone(),
         };
 
         // Create channels for network communication
@@ -53,8 +50,9 @@ impl Node {
         let (vote_tx, mut vote_rx) = mpsc::unbounded_channel();
         let (api_tx, mut api_rx) = mpsc::unbounded_channel();
         
-        // Calculate API port (e.g., node 9000 -> api 8000, 9001 -> 8001)
-        let api_port = 8000 + (port - 9000);
+        // Calculate API port (HTTP API on port - 1000)
+        // P2P: 9000-9002 -> API: 8000-8002
+        let api_port = port - 1000;
         let api_config = crate::api::ApiConfig { port: api_port as u16 };
         
         tokio::spawn(async move {
@@ -66,10 +64,6 @@ impl Node {
             .await
             .expect("Failed to create network node");
 
-        // 1. Setup Genesis or Load Wallet
-        // Use a fixed genesis time for deterministic genesis across all nodes
-        let genesis_time = 1733760000000i64; // Fixed timestamp: Dec 9 2024
-        
         // Helper to generate deterministic keypair from a seed string
         fn generate_deterministic_keypair(seed_str: &str) -> schnorrkel::Keypair {
             let mut seed = [0u8; 32];
@@ -83,67 +77,57 @@ impl Node {
             secret.to_keypair()
         }
 
-        // Define devnet topology with deterministic seeds
-        let devnet_nodes = vec![
-            (9000, "nocostcoin_node_9000_seed"),
-            (9001, "nocostcoin_node_9001_seed"), 
-            (9002, "nocostcoin_node_9002_seed"),
-        ];
+        // Determine base path
+        let base_path = self.config.data_dir.clone().unwrap_or_else(|| std::path::PathBuf::from("."));
 
         // Load or create wallet
-        let wallet_path = format!("./wallet_{}.key", port);
+        let wallet_filename = format!("wallet_{}.key", port);
+        let wallet_path = base_path.join(wallet_filename);
+        let wallet_path_str = wallet_path.to_str().unwrap();
         
-        // For devnet ports, FORCE deterministic keys
-        let keypair = if let Some((_, seed)) = devnet_nodes.iter().find(|(p, _)| *p == port) {
-            println!("Devnet mode: Using deterministic key for port {}", port);
+        let keypair = if let Some(seed) = &self.config.mining.validator_seed {
+            info!("Using deterministic key from config");
             let kp = generate_deterministic_keypair(seed);
             
             // Save to file just for consistency
             let w = Wallet::from_keypair(kp.clone());
-            if let Err(e) = w.save_to_file(&wallet_path) {
-                println!("Warning: Failed to save deterministic wallet: {}", e);
+            if let Err(e) = w.save_to_file(wallet_path_str) {
+                warn!("Warning: Failed to save deterministic wallet: {}", e);
             }
             kp
         } else {
-            // Normal non-devnet behavior
-            match Wallet::load_from_file(&wallet_path) {
+            // Normal non-deterministic behavior
+            match Wallet::load_from_file(wallet_path_str) {
                 Ok(w) => {
-                    println!("Loaded wallet from {}", wallet_path);
+                    info!("Loaded wallet from {}", wallet_path_str);
                     w.keypair
                 }
                 Err(_) => {
-                    println!("Creating new wallet at {}", wallet_path);
+                    info!("Creating new wallet at {}", wallet_path_str);
                     let w = Wallet::new();
-                    w.save_to_file(&wallet_path).expect("Failed to save wallet");
+                    w.save_to_file(wallet_path_str).expect("Failed to save wallet");
                     w.keypair
                 }
             }
         };
-        
-        // Save deterministic wallet to disk if we are a devnet node
-        if devnet_nodes.iter().any(|(p, _)| *p == port) {
-            let w = Wallet::from_keypair(keypair.clone());
-            w.save_to_file(&wallet_path).expect("Failed to save deterministic wallet");
-        }
 
-        // Create TRULY deterministic genesis block (same for all nodes)
+        // Create Deterministic Genesis Block
         use schnorrkel::{MiniSecretKey, SecretKey};
-        let genesis_mini_secret = MiniSecretKey::from_bytes(
-            &[42u8; 32] // Fixed seed
-        ).expect("Failed to create genesis secret");
-        let genesis_secret: SecretKey = genesis_mini_secret.expand(schnorrkel::ExpansionMode::Ed25519);
-        let genesis_keypair = genesis_secret.to_keypair();
+        let genesis_seed_str = &self.config.genesis.genesis_seed;
+        let genesis_kp = generate_deterministic_keypair(genesis_seed_str);
         
         let genesis_vrf_output = vec![0u8; 32];
         let genesis_vrf_proof = vec![0u8; 64];
         
+        let genesis_time = self.config.genesis.genesis_time;
+
         let genesis_header = BlockHeader {
             parent_hash: "0".to_string(),
             slot: 0,
             epoch: 0,
             vrf_output: genesis_vrf_output,
             vrf_proof: genesis_vrf_proof,
-            validator_pubkey: genesis_keypair.public.to_bytes().to_vec(),
+            validator_pubkey: genesis_kp.public.to_bytes().to_vec(),
             producer_signature: vec![],
             state_root: "".to_string(),
             tx_root: "".to_string(),
@@ -153,33 +137,52 @@ impl Node {
         
         let genesis_block = Block::new(genesis_header, vec![]);
         
-        println!("Deterministic genesis block hash: {}", genesis_block.hash);
+        info!("Genesis block hash: {}", genesis_block.hash);
 
         // Initialize Storage with unique path per port
-        let db_path = format!("./nocostcoin_db_{}", port);
-        let storage = crate::storage::Storage::new(db_path).expect("Failed to create storage");
+        let db_filename = format!("nocostcoin_db_{}", port);
+        let db_path = base_path.join(db_filename);
+        let storage = crate::storage::Storage::new(db_path.to_str().unwrap()).expect("Failed to create storage");
 
         // Initialize Chain with Storage
         let mut chain = Chain::new(storage, genesis_block.clone(), genesis_time);
 
-        // PRE-REGISTER ALL DEVNET VALIDATORS
-        println!("Pre-registering devnet validators...");
-        for (_, seed) in devnet_nodes.iter() {
+        // PRE-REGISTER Configured Validators
+        info!("Pre-registering initial validators...");
+        for seed in &self.config.genesis.initial_validators {
             let node_kp = generate_deterministic_keypair(seed);
             let node_pubkey = node_kp.public.to_bytes().to_vec();
             
-            chain.state.set_balance(node_pubkey.clone(), 1_000_000);
-            let _ = chain.validators.register_validator(node_pubkey, 1_000_000, 0);
+            if chain.state.get_balance(&node_pubkey) == 0 {
+                chain.state.set_balance(node_pubkey.clone(), 1_000_000);
+                let _ = chain.validators.register_validator(node_pubkey, 1_000_000, 0);
+            }
         }
         
-        // Register self if not in devnet_nodes
+        // Register self if we have balance (or give balance if genesis logic allows)
+        // For Devnet simplicity: ensure self has balance if we are using a configured seed
+        // (The loop above likely covered us if we are in the initial list)
+        // If we are NOT in the initial list, we might need funding (Faucet).
         let my_address = keypair.public.to_bytes().to_vec();
-        if chain.state.get_balance(&my_address) == 0 {
-             chain.state.set_balance(my_address.clone(), 1_000_000);
-             let _ = chain.validators.register_validator(my_address.clone(), 1_000_000, 0);
+        if self.config.mining.validator_seed.is_some() {
+             // If we rely on seed, we expect to be in genesis. 
+             // Double check balance.
+             if chain.state.get_balance(&my_address) == 0 {
+                  // Fallback for standalone dev mode: fund self
+                  info!("Funding self (standalone mode)...");
+                  chain.state.set_balance(my_address.clone(), 1_000_000);
+                  let _ = chain.validators.register_validator(my_address.clone(), 1_000_000, 0);
+             }
+        }
+        
+        // CRITICAL: Persist initial balances to disk
+        if let Err(e) = chain.state.apply_changes() {
+            error!("CRITICAL ERROR: Failed to persist initial balances: {}", e);
+        } else {
+            info!("✓ Successfully persisted initial balances to disk");
         }
 
-        println!("Chain initialized with genesis: {}", genesis_block.hash);
+        info!("Chain initialized with genesis: {}", genesis_block.hash);
 
         // Spawn network task
         let network_handle = tokio::spawn(async move {
@@ -542,7 +545,7 @@ impl Node {
                              let stats = crate::api::NodeStats {
                                  height: chain.get_height(),
                                  head_hash: chain.head.clone(),
-                                 peer_count: 0, 
+                                 peer_count: sync_manager.get_peers().len(),
                                  balance: chain.state.get_balance(&my_address),
                                  address: hex::encode(my_address.clone()),
                              };
@@ -673,6 +676,279 @@ impl Node {
                             };
                             let _ = respond_to.send(response);
                         }
+                        crate::api::ApiCommand::Faucet(request, respond_to) => {
+                            println!("🚰 Faucet request received for address: {}", request.address);
+                            
+                            // Validate and decode address
+                            let receiver = match hex::decode(&request.address) {
+                                Ok(bytes) => {
+                                    if bytes.len() == 32 {
+                                        bytes
+                                    } else {
+                                        println!("❌ Faucet: Invalid address length: {} bytes", bytes.len());
+                                        let _ = respond_to.send(Err("Invalid address: must be 32 bytes (64 hex characters)".to_string()));
+                                        continue;
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("❌ Faucet: Invalid hex address: {}", e);
+                                    let _ = respond_to.send(Err("Invalid address: must be valid hex".to_string()));
+                                    continue;
+                                }
+                            };
+                            
+                            // Check rate limiting
+                            let current_time = chrono::Utc::now().timestamp_millis();
+                            match chain.storage.can_claim(&receiver, current_time) {
+                                Ok(can_claim) => {
+                                    if !can_claim {
+                                        println!("⏳ Faucet: Address on cooldown");
+                                        // Calculate time remaining
+                                        if let Ok(Some(remaining_ms)) = chain.storage.get_claim_cooldown_remaining(&receiver, current_time) {
+                                            let remaining_hours = remaining_ms / (60 * 60 * 1000);
+                                            let _ = respond_to.send(Err(format!(
+                                                "Faucet cooldown active. Please wait {} hours before claiming again.", 
+                                                remaining_hours
+                                            )));
+                                        } else {
+                                            let _ = respond_to.send(Err("Faucet cooldown active. Please wait 24 hours between claims.".to_string()));
+                                        }
+                                        continue;
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("❌ Faucet: Failed to check claim status: {}", e);
+                                    let _ = respond_to.send(Err(format!("Failed to check claim status: {}", e)));
+                                    continue;
+                                }
+                            }
+                            
+                            // Send tokens
+                            let amount = 1000; // Faucet amount
+                            let current_balance = chain.state.get_balance(&my_address);
+                            
+                            println!("💰 Faucet: Node balance: {} tokens, requested: {} tokens", current_balance, amount);
+                            
+                            // Check if node has sufficient balance
+                            if current_balance < amount {
+                                println!("❌ Faucet: Insufficient node balance ({} < {})", current_balance, amount);
+                                let _ = respond_to.send(Err(format!(
+                                    "Faucet temporarily unavailable: Node balance too low ({} tokens). Please try another node or wait for the node to receive more tokens.",
+                                    current_balance
+                                )));
+                                continue;
+                            }
+                            
+                            let nonce = chain.state.get_nonce(&my_address);
+                            
+                            // Account for pending transactions in mempool
+                            let pending_nonce_offset = mempool.get_transactions_for_block(1000)
+                                .iter()
+                                .filter(|tx| tx.sender == my_address)
+                                .count() as u64;
+                            
+                            let final_nonce = nonce + pending_nonce_offset;
+                            println!("🔢 Faucet: Using nonce {} (state: {}, pending offset: {})", final_nonce, nonce, pending_nonce_offset);
+                            
+                            let tx = crate::transaction::Transaction::new(
+                                my_address.clone(),
+                                receiver.clone(),
+                                crate::transaction::TransactionData::NativeTransfer { amount },
+                                final_nonce,
+                                &keypair
+                            );
+                            
+                            let hash = hex::encode(tx.hash());
+                            println!("📝 Faucet: Created transaction with hash: {}", hash);
+
+                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                                println!("✓ Faucet: Transaction added to mempool");
+                                network_client.broadcast_transaction(tx);
+                                println!("📡 Faucet: Transaction broadcasted to network");
+                                
+                                // Record the claim
+                                if let Err(e) = chain.storage.record_faucet_claim(&receiver, current_time) {
+                                    eprintln!("⚠️  Warning: Failed to record faucet claim: {}", e);
+                                }
+                                
+                                // Calculate next claim time
+                                const COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000;
+                                let next_claim_time = current_time + COOLDOWN_MS;
+                                
+                                let response = crate::api::FaucetResponse {
+                                    tx_hash: hash,
+                                    amount,
+                                    next_claim_time,
+                                };
+                                
+                                println!("✅ Faucet: Successfully sent {} tokens to {}", amount, request.address);
+                                let _ = respond_to.send(Ok(response));
+                            } else {
+                                println!("❌ Faucet: Failed to add transaction to mempool");
+                                let _ = respond_to.send(Err("Faucet failed: insufficient balance or invalid transaction".to_string()));
+                            }
+                        }
+                        crate::api::ApiCommand::GetBlocks(start_height_opt, limit, respond_to) => {
+                            let head_height = chain.get_height();
+                            let start_height = if start_height_opt == u64::MAX {
+                                head_height
+                            } else {
+                                std::cmp::min(start_height_opt, head_height)
+                            };
+                            
+                            let mut blocks = Vec::new();
+                            let mut current_height = start_height;
+                            
+                            // Fetch blocks going backwards from start_height
+                            for _ in 0..limit {
+                                if let Ok(Some(hash)) = chain.storage.get_block_by_height(current_height) {
+                                    if let Some(block) = chain.get_block(&hash) {
+                                        blocks.push(block);
+                                    }
+                                }
+                                
+                                if current_height == 0 {
+                                    break;
+                                }
+                                current_height -= 1;
+                            }
+                            
+                            let _ = respond_to.send(blocks);
+                        }
+                        crate::api::ApiCommand::GetAccount(address_str, respond_to) => {
+                            if let Ok(address) = hex::decode(&address_str) {
+                                let balance = chain.state.get_balance(&address);
+                                let nonce = chain.state.get_nonce(&address);
+                                
+                                let response = crate::api::AccountResponse {
+                                    address: address_str,
+                                    balance,
+                                    nonce,
+                                };
+                                let _ = respond_to.send(Some(response));
+                            } else {
+                                let _ = respond_to.send(None);
+                            }
+                        }
+                        crate::api::ApiCommand::GetTransaction(hash, respond_to) => {
+                            // 1. Check Mempool
+                            // Loop through mempool logic is strict but doable
+                            // In real impl, mempool would map hash -> tx
+                            let mempool_tx = mempool.transactions.values().find(|tx| hex::encode(tx.hash()) == hash);
+                            
+                            if let Some(tx) = mempool_tx {
+                                let response = crate::api::TransactionResponse {
+                                    hash: hash.clone(),
+                                    transaction: tx.clone(),
+                                    block_hash: String::new(), // Not in a block
+                                    status: "pending".to_string(),
+                                };
+                                let _ = respond_to.send(Some(response));
+                                continue;
+                            }
+                            
+                            // 2. Check Storage Index
+                            match chain.storage.get_transaction_block(&hash) {
+                                Ok(Some(block_hash)) => {
+                                    if let Some(block) = chain.get_block(&block_hash) {
+                                         if let Some(tx) = block.transactions.iter().find(|t| hex::encode(t.hash()) == hash) {
+                                             let response = crate::api::TransactionResponse {
+                                                hash: hash.clone(),
+                                                transaction: tx.clone(),
+                                                block_hash,
+                                                status: "confirmed".to_string(),
+                                             };
+                                             let _ = respond_to.send(Some(response));
+                                             continue;
+                                         }
+                                    }
+                                }
+                                _ => {}
+                            }
+                            
+                            let _ = respond_to.send(None);
+                        }
+                        crate::api::ApiCommand::GetAddressHistory(address, limit, respond_to) => {
+                            let mut history = Vec::new();
+
+                            // 1. Check Pending (Mempool) - Only for Sender
+                            // Receiver pending is harder unless we index mempool by receiver too, but usually sender cares most about pending.
+                            for tx in mempool.transactions.values() {
+                                if hex::encode(&tx.sender) == address {
+                                    history.push(crate::api::TransactionResponse {
+                                        hash: hex::encode(tx.hash()),
+                                        transaction: tx.clone(),
+                                        block_hash: String::new(),
+                                        status: "pending".to_string(),
+                                    });
+                                }
+                            }
+                            
+                            // 2. Check Confirmed (Storage)
+                            if let Ok(tx_hashes) = chain.storage.get_address_history(&address, limit) {
+                                for hash in tx_hashes {
+                                    if let Ok(Some(block_hash)) = chain.storage.get_transaction_block(&hash) {
+                                        if let Some(block) = chain.get_block(&block_hash) {
+                                            if let Some(tx) = block.transactions.iter().find(|t| hex::encode(t.hash()) == hash) {
+                                                history.push(crate::api::TransactionResponse {
+                                                    hash: hash.clone(),
+                                                    transaction: tx.clone(),
+                                                    block_hash,
+                                                    status: "confirmed".to_string(),
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            let _ = respond_to.send(history);
+                        }
+                        crate::api::ApiCommand::GetValidators(respond_to) => {
+                             let validators = chain.validators.get_all_validators().into_iter().map(|v| {
+                                 crate::api::ValidatorStatusResponse {
+                                     pubkey: hex::encode(v.pubkey),
+                                     stake: v.stake,
+                                     is_active: !v.slashed,
+                                     last_voted_slot: 0, // Placeholder
+                                 }
+                             }).collect();
+                             let _ = respond_to.send(validators);
+                        }
+                        crate::api::ApiCommand::RegisterValidator(stake, respond_to) => {
+                             // Create and sign a transaction to register as validator
+                             // 1. Get address info
+                             let sender_pubkey_bytes = keypair.public.to_bytes().to_vec();
+                             
+                             let balance = chain.state.get_balance(&sender_pubkey_bytes);
+                             let nonce = chain.state.get_nonce(&sender_pubkey_bytes);
+                             
+                             if balance < stake {
+                                 let _ = respond_to.send(Err("Insufficient balance".to_string()));
+                                 continue;
+                             }
+                             
+                             // 2. Create Transaction
+                             let tx = crate::transaction::Transaction::new(
+                                 sender_pubkey_bytes.clone(),
+                                 vec![], // No receiver for registration
+                                 crate::transaction::TransactionData::RegisterValidator { stake },
+                                 nonce,
+                                 &keypair,
+                             );
+                             
+                             // 3. Add to Mempool
+                             match mempool.add_transaction(tx.clone(), &chain.state) {
+                                 Ok(_) => {
+                                      // 4. Broadcast
+                                      network_client.broadcast_transaction(tx.clone());
+                                      let _ = respond_to.send(Ok(hex::encode(tx.hash())));
+                                 },
+                                 Err(e) => {
+                                      let _ = respond_to.send(Err(e));
+                                 }
+                             }
+                        }
                     }
                 }
                 
@@ -688,3 +964,4 @@ impl Node {
         }
     }
 }
+

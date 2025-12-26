@@ -16,8 +16,36 @@ pub enum ApiCommand {
     GetPeers(oneshot::Sender<Vec<PeerInfo>>),
     CreateWallet(oneshot::Sender<CreateWalletResponse>),
     RecoverWallet(RecoverWalletRequest, oneshot::Sender<Result<String, String>>),
+    GetBlocks(u64, usize, oneshot::Sender<Vec<Block>>),
+    GetAccount(String, oneshot::Sender<Option<AccountResponse>>),
+    GetTransaction(String, oneshot::Sender<Option<TransactionResponse>>),
+    GetAddressHistory(String, usize, oneshot::Sender<Vec<TransactionResponse>>),
+    GetValidators(oneshot::Sender<Vec<ValidatorStatusResponse>>),
     GetValidatorStatus(oneshot::Sender<Option<ValidatorStatusResponse>>),
+    RegisterValidator(u64, oneshot::Sender<Result<String, String>>),
     GetConsensusState(oneshot::Sender<ConsensusStateResponse>),
+    Faucet(FaucetRequest, oneshot::Sender<Result<FaucetResponse, String>>),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TransactionResponse {
+    pub hash: String, // Calculated hash
+    pub transaction: Transaction,
+    pub block_hash: String,
+    pub status: String, // "confirmed" or "pending"
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccountResponse {
+    pub address: String,
+    pub balance: u64,
+    pub nonce: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetBlocksQuery {
+    pub start_height: Option<u64>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,6 +73,23 @@ pub struct CreateWalletResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecoverWalletRequest {
     pub mnemonic: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FaucetRequest {
+    pub address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RegisterValidatorRequest {
+    pub stake: u64,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct FaucetResponse {
+    pub tx_hash: String,
+    pub amount: u64,
+    pub next_claim_time: i64,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -91,6 +136,13 @@ pub fn start_api_server(
         .and(cmd_tx_filter.clone())
         .and_then(handle_get_stats);
 
+    // GET /blocks?start_height=...&limit=...
+    let blocks_route = warp::path!("blocks")
+        .and(warp::get())
+        .and(warp::query::<GetBlocksQuery>())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_get_blocks);
+
     // GET /block/latest
     let block_route = warp::path!("block" / "latest")
         .and(warp::get())
@@ -102,6 +154,24 @@ pub fn start_api_server(
         .and(warp::get())
         .and(cmd_tx_filter.clone())
         .and_then(handle_get_block);
+
+    // GET /account/:address
+    let account_route = warp::path!("account" / String)
+        .and(warp::get())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_get_account);
+
+    // GET /account/:address/history
+    let account_history_route = warp::path!("account" / String / "history")
+        .and(warp::get())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_get_account_history);
+
+    // GET /transaction/:hash
+    let get_tx_route = warp::path!("transaction" / String)
+        .and(warp::get())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_get_transaction);
 
     // POST /transaction/send
     // Expects JSON body: Transaction
@@ -150,15 +220,39 @@ pub fn start_api_server(
         .and(cmd_tx_filter.clone())
         .and_then(handle_get_validator_status);
 
+    // GET /validators (List all)
+    let validators_list_route = warp::path!("validators")
+        .and(warp::get())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_get_validators);
+
     // GET /consensus
     let consensus_route = warp::path!("consensus")
         .and(warp::get())
         .and(cmd_tx_filter.clone())
         .and_then(handle_get_consensus_state);
 
+    // POST /validator/register
+    let register_validator_route = warp::path!("validator" / "register")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_register_validator);
+
+    // POST /faucet
+    let faucet_route = warp::path!("faucet")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(cmd_tx_filter.clone())
+        .and_then(handle_faucet);
+
     let routes = stats_route
+        .or(blocks_route)
         .or(block_route)
         .or(get_block_route)
+        .or(account_route)
+        .or(account_history_route)
+        .or(get_tx_route)
         .or(tx_route)
         .or(create_tx_route)
         .or(mempool_route)
@@ -166,10 +260,39 @@ pub fn start_api_server(
         .or(create_wallet_route)
         .or(recover_wallet_route)
         .or(validator_route)
-        .or(consensus_route);
+        .or(validators_list_route)
+        .or(register_validator_route)
+        .or(consensus_route)
+        .or(faucet_route);
 
     println!("API server starting on http://0.0.0.0:{}", config.port);
     warp::serve(routes).run(([0, 0, 0, 0], config.port))
+}
+
+async fn handle_get_account_history(
+    address: String,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    // Default limit 20
+    if cmd_tx.send(ApiCommand::GetAddressHistory(address, 20, tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(txs) => Ok(warp::reply::with_status(
+            warp::reply::json(&txs),
+            warp::http::StatusCode::OK,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
 }
 
 async fn handle_get_stats(
@@ -187,6 +310,33 @@ async fn handle_get_stats(
     match rx.await {
         Ok(stats) => Ok(warp::reply::with_status(
             warp::reply::json(&stats),
+            warp::http::StatusCode::OK,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
+async fn handle_get_blocks(
+    query: GetBlocksQuery,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    let start_height = query.start_height.unwrap_or(u64::MAX); // Special value to mean "from head"
+    let limit = query.limit.unwrap_or(10);
+
+    if cmd_tx.send(ApiCommand::GetBlocks(start_height, limit, tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(blocks) => Ok(warp::reply::with_status(
+            warp::reply::json(&blocks),
             warp::http::StatusCode::OK,
         )),
         Err(_) => Ok(warp::reply::with_status(
@@ -244,6 +394,64 @@ async fn handle_get_block(
         )),
         Ok(None) => Ok(warp::reply::with_status(
             warp::reply::json(&"Block not found"),
+            warp::http::StatusCode::NOT_FOUND,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
+async fn handle_get_account(
+    address: String,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    if cmd_tx.send(ApiCommand::GetAccount(address, tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(Some(account)) => Ok(warp::reply::with_status(
+            warp::reply::json(&account),
+            warp::http::StatusCode::OK,
+        )),
+        Ok(None) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Account not found"),
+            warp::http::StatusCode::NOT_FOUND,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
+async fn handle_get_transaction(
+    hash: String,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    if cmd_tx.send(ApiCommand::GetTransaction(hash, tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(Some(response)) => Ok(warp::reply::with_status(
+            warp::reply::json(&response),
+            warp::http::StatusCode::OK,
+        )),
+        Ok(None) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Transaction not found"),
             warp::http::StatusCode::NOT_FOUND,
         )),
         Err(_) => Ok(warp::reply::with_status(
@@ -440,6 +648,59 @@ async fn handle_get_validator_status(
     }
 }
 
+async fn handle_get_validators(
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    if cmd_tx.send(ApiCommand::GetValidators(tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(validators) => Ok(warp::reply::with_status(
+            warp::reply::json(&validators),
+            warp::http::StatusCode::OK,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
+async fn handle_register_validator(
+    request: RegisterValidatorRequest,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    if cmd_tx.send(ApiCommand::RegisterValidator(request.stake, tx)).is_err() {
+         return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+         Ok(Ok(tx_hash)) => Ok(warp::reply::with_status(
+            warp::reply::json(&tx_hash),
+            warp::http::StatusCode::OK,
+        )),
+        Ok(Err(e)) => Ok(warp::reply::with_status(
+            warp::reply::json(&e),
+            warp::http::StatusCode::BAD_REQUEST,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
 async fn handle_get_consensus_state(
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
@@ -456,6 +717,35 @@ async fn handle_get_consensus_state(
         Ok(state) => Ok(warp::reply::with_status(
             warp::reply::json(&state),
             warp::http::StatusCode::OK,
+        )),
+        Err(_) => Ok(warp::reply::with_status(
+            warp::reply::json(&"Request timed out"),
+            warp::http::StatusCode::REQUEST_TIMEOUT,
+        )),
+    }
+}
+
+async fn handle_faucet(
+    request: FaucetRequest,
+    cmd_tx: mpsc::UnboundedSender<ApiCommand>
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let (tx, rx) = oneshot::channel();
+    
+    if cmd_tx.send(ApiCommand::Faucet(request, tx)).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Internal Server Error"),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    match rx.await {
+        Ok(Ok(response)) => Ok(warp::reply::with_status(
+            warp::reply::json(&response),
+            warp::http::StatusCode::OK,
+        )),
+        Ok(Err(e)) => Ok(warp::reply::with_status(
+            warp::reply::json(&e),
+            warp::http::StatusCode::BAD_REQUEST,
         )),
         Err(_) => Ok(warp::reply::with_status(
             warp::reply::json(&"Request timed out"),

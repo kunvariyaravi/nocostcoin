@@ -65,7 +65,7 @@ This guide helps you effectively showcase Nocostcoin to the blockchain community
 **Title Ideas:**
 1. "Building a Blockchain with Proof of Determinism in Rust"
 2. "How VRF-Based Leader Selection Works in Nocostcoin"
-3. "From Zero to Devnet: Launching Your Own Blockchain"
+3. "From Zero to Testnet: Launching Your Own Blockchain"
 4. "Deterministic Consensus: An Alternative to PoW and PoS"
 
 **Structure:**
@@ -80,7 +80,7 @@ This guide helps you effectively showcase Nocostcoin to the blockchain community
 **YouTube Video Ideas:**
 
 1. **"I Built a Blockchain in Rust" (15 min)**
-   - Journey from concept to working devnet
+   - Journey from concept to working Testnet
    - Technical challenges solved
    - Live demo
 
@@ -89,7 +89,7 @@ This guide helps you effectively showcase Nocostcoin to the blockchain community
    - Comparison with PoW/PoS
    - Code walkthrough
 
-3. **"Blockchain Devnet Tutorial" (20 min)**
+3. **"Blockchain Testnet Tutorial" (20 min)**
    - Step-by-step setup
    - Running nodes
    - Sending transactions
@@ -137,9 +137,9 @@ Result: Fast (2s blocks), efficient, and predictable.
 
 [Feature showcase GIF]
 
-5/10 You can run a 3-node devnet with ONE command:
+5/10 You can run a 3-node Testnet with ONE command:
 
-.\launch_devnet.ps1
+.\launch_Testnet.ps1
 
 That's it! Full blockchain running locally.
 
@@ -152,7 +152,7 @@ That's it! Full blockchain running locally.
 - Signature verification
 - Nonce-based replay protection
 
-Current rating: 68/100 (devnet-ready)
+Current rating: 68/100 (Testnet-ready)
 
 7/10 The network auto-discovers peers via mDNS, syncs chain 
 history, and produces blocks in perfect 2-second intervals.
@@ -210,10 +210,10 @@ it interesting!
 - tokio for async runtime
 
 **Try it yourself:**
-You can launch a 3-node devnet with one command. Everything is automated.
+You can launch a 3-node Testnet with one command. Everything is automated.
 
 **Current status:**
-- ✅ Working devnet
+- ✅ Working Testnet
 - ✅ Chain synchronization
 - ✅ Transaction processing
 - ⚠️ Not production-ready (yet)
@@ -319,7 +319,7 @@ you most interested in?
 - VRF verification: 100% of blocks
 - Equivocation detection: Automatic
 - Stake requirement: 0.1% minimum
-- Security rating: 68/100 (devnet)
+- Security rating: 68/100 (Testnet)
 
 **Developer Experience:**
 - Setup time: < 5 minutes
@@ -366,7 +366,7 @@ Key Features:
 • VRF-based cryptographic verification
 • Stake-weighted validator selection
 • Built-in equivocation detection and slashing
-• One-command devnet deployment
+• One-command Testnet deployment
 
 "The goal was to create a consensus mechanism that's both secure and 
 predictable," said [Your Name]. "Proof of Determinism achieves this by 
@@ -374,7 +374,7 @@ combining the best aspects of deterministic scheduling with cryptographic
 verification."
 
 The project is open-source and available on GitHub, with comprehensive 
-documentation and an automated devnet for testing.
+documentation and an automated Testnet for testing.
 
 Technical Specifications:
 - Language: Rust
@@ -383,7 +383,7 @@ Technical Specifications:
 - Networking: libp2p (Gossipsub, Kademlia, mDNS)
 - Storage: Embedded sled database
 
-Current Status: Devnet-ready (Security Rating: 68/100)
+Current Status: Testnet-ready (Security Rating: 68/100)
 
 For more information, visit: [GitHub URL]
 
@@ -441,3 +441,4 @@ Track these to measure community interest:
 the experimental/educational nature. The community appreciates transparency!
 
 Good luck with your showcase! 🚀
+

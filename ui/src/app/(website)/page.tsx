@@ -1,79 +1,119 @@
 import Hero from "@/components/Hero/Hero";
 import Features from "@/components/Features/Features";
-import FeatureRow from "@/components/FeatureRow/FeatureRow";
 import CodeShowcase from "@/components/CodeShowcase/CodeShowcase";
 import PreFooter from "@/components/PreFooter/PreFooter";
+import Link from 'next/link';
+import WebsiteNavbar from "@/components/Navbar/WebsiteNavbar";
 
 export default function Home() {
   return (
-    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: '#050505' }}>
-      <Hero />
+    <>
+      <WebsiteNavbar />
+      <main className="min-h-screen">
+        <Hero />
+        <Features />
 
-      {/* Proof of Determinism */}
-      <FeatureRow
-        title="Proof of Determinism"
-        description="Eliminate probabilistic forks forever. Our novel consensus mechanism ensures that every slot has one and only one valid leader, mathematically proven through a VRF-based sortition. Experience instant finality without the wait."
-        visual={
-          <div style={{ width: '100%', maxWidth: '400px', height: '300px', background: 'linear-gradient(135deg, rgba(255,255,255,0.05), transparent)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-              <path d="M12 8v4"></path>
-              <path d="M12 16h.01"></path>
-            </svg>
+        {/* How It Works */}
+        <section className="py-20 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
+              <p className="text-xl text-gray-600">Revolutionary technology powering the future of blockchain</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                  1
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Proof of Determinism</h3>
+                <p className="text-gray-600">Every slot has exactly one valid leader, mathematically proven through VRF-based sortition. No forks, no uncertainty.</p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                  2
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Secret Leader Selection</h3>
+                <p className="text-gray-600">Leaders are chosen using private VRF keys. Identity revealed only when producing blocks, preventing targeted attacks.</p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-primary-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+                  3
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Instant Consensus</h3>
+                <p className="text-gray-600">Deterministic finality in 2 seconds. Transactions are final the moment they&apos;re included in a block.</p>
+              </div>
+            </div>
           </div>
-        }
-      />
+        </section>
 
-      {/* Hidden Leader Election */}
-      <FeatureRow
-        title="Hidden Leader Election"
-        description="Protect the network from DDoS attacks. Validators are selected in secret using private VRF keys. The leader's identity is only revealed when they produce a block, making targeted attacks impossible while maintaining total transparency."
-        reversed={true}
-        visual={
-          <div style={{ width: '100%', maxWidth: '400px', height: '300px', background: 'linear-gradient(225deg, rgba(255,255,255,0.05), transparent)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
+        {/* Technology Highlight */}
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-4xl font-bold text-gray-900 mb-6">Built for the Future</h2>
+                <p className="text-lg text-gray-600 mb-6">
+                  Nocostcoin isn&apos;t just another blockchain. It&apos;s a fundamental rethinking of how distributed consensus should work.
+                </p>
+                <ul className="space-y-3 mb-8">
+                  <li className="flex items-center text-gray-700">
+                    <span className="text-green-500 mr-3">✓</span>
+                    VRF-based leader election
+                  </li>
+                  <li className="flex items-center text-gray-700">
+                    <span className="text-green-500 mr-3">✓</span>
+                    Merkle Patricia Trie state management
+                  </li>
+                  <li className="flex items-center text-gray-700">
+                    <span className="text-green-500 mr-3">✓</span>
+                    Ed25519 cryptographic signatures
+                  </li>
+                  <li className="flex items-center text-gray-700">
+                    <span className="text-green-500 mr-3">✓</span>
+                    Native account abstraction
+                  </li>
+                  <li className="flex items-center text-gray-700">
+                    <span className="text-green-500 mr-3">✓</span>
+                    Built-in DeFi primitives
+                  </li>
+                </ul>
+                <Link href="/whitepaper" className="btn-secondary inline-block">
+                  Read the Whitepaper →
+                </Link>
+              </div>
+              <div>
+                <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 bg-gray-800">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="ml-4 text-sm text-gray-400">nocostcoin-core</span>
+                  </div>
+                  <pre className="p-6 text-sm text-gray-300 overflow-x-auto">
+                    {`// Zero-fee transaction
+let tx = Transaction {
+  from: alice,
+  to: bob,
+  amount: 100,
+  fee: 0, // Always zero!
+};
+
+// Instant finality
+blockchain.submit(tx);
+// ✓ Confirmed in 2 seconds`}
+                  </pre>
+                </div>
+              </div>
+            </div>
           </div>
-        }
-      />
+        </section>
 
-      <CodeShowcase />
-
-      {/* Zero Fees */}
-      {/* Native AI Economy */}
-      <FeatureRow
-        title="Native AI Economy"
-        description="Built for the machine age. Nocostcoin creates a first-class environment for AI agents with Native Delegation (manage agent allowances without smart contracts) and Payment Channels for high-frequency streaming payments per-token."
-        visual={
-          <div style={{ width: '100%', maxWidth: '400px', height: '300px', background: 'linear-gradient(135deg, rgba(255,255,255,0.05), transparent)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
-              <path d="M12 2a10 10 0 0 1 10 10h-10V2z" opacity="0.5"></path>
-              <path d="M2 12a10 10 0 0 1 10-10v10H2z" opacity="0.3"></path>
-            </svg>
-          </div>
-        }
-      />
-
-      {/* Native Lending */}
-      <FeatureRow
-        title="Enshrined DeFi"
-        description="Borrow and lend natively. No smart contract risks, no expensive gas fees. Nocostcoin integrates a global liquidity pool directly into the protocol, allowing for secure, high-performance collateralized lending."
-        reversed={true}
-        visual={
-          <div style={{ width: '100%', maxWidth: '400px', height: '300px', background: 'linear-gradient(225deg, rgba(255,255,255,0.05), transparent)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 1v22"></path>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-          </div>
-        }
-      />
-
-      <Features />
-      <PreFooter />
-    </main>
+        <CodeShowcase />
+        <PreFooter />
+      </main>
+    </>
   );
 }

@@ -8,9 +8,16 @@ services:
       - "8000:8000"
     volumes:
       - ./data/node-1:/usr/local/bin/data
-    command: [ "./nocostcoin" ]
+      - ./config:/usr/local/bin/config
+    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9000", "--mining", "true" ]
     environment:
       - RUST_LOG=info
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/stats" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   node-2:
     build: ./core
@@ -19,9 +26,11 @@ services:
       - "8001:8001"
     volumes:
       - ./data/node-2:/usr/local/bin/data
-    # In a real scenario, we'd pass bootstrap peers via args or env
-    # Here, the code handles it via hardcoded devnet seeds if ports match
-    command: [ "./nocostcoin" ]
+      - ./config:/usr/local/bin/config
+    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9001", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    restart: unless-stopped
+    depends_on:
+      - node-1
 
   node-3:
     build: ./core
@@ -30,7 +39,11 @@ services:
       - "8002:8002"
     volumes:
       - ./data/node-3:/usr/local/bin/data
-    command: [ "./nocostcoin" ]
+      - ./config:/usr/local/bin/config
+    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9002", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    restart: unless-stopped
+    depends_on:
+      - node-1
 
   ui:
     build: ./ui
@@ -41,5 +54,6 @@ services:
       # In Docker network, valid hostname is 'node-1', but port is 8000
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - API_URL=http://node-1:8000
+    restart: unless-stopped
     depends_on:
       - node-1

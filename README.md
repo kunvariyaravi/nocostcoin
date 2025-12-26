@@ -49,14 +49,14 @@ cd nocostcoin
 cargo build --release
 ```
 
-### Launch Devnet (Automated)
+### Launch Testnet (Automated)
 
 ```powershell
 # Windows
-.\launch_devnet.ps1
+.\launch_Testnet.ps1
 
 # Linux/macOS
-./launch_devnet.sh
+./launch_Testnet.sh
 ```
 
 This launches a 3-node local network automatically!
@@ -135,7 +135,7 @@ Once running, use these commands in any node terminal:
 - [ ] Peer reputation system
 - [ ] Time synchronization (NTP)
 
-**Status**: ✅ Safe for devnet | ⚠️ Not production-ready
+**Status**: ✅ Safe for Testnet | ⚠️ Not production-ready
 
 ## 📊 Consensus Details
 
@@ -182,8 +182,8 @@ nocostcoin/
 │   ├── src/              # UI Source code
 │   ├── package.json      # JS dependencies
 │   └── ...
-├── launch_devnet.ps1     # Automated devnet launcher
-├── launch_devnet.sh      # Launcher for Linux/macOS
+├── launch_Testnet.ps1     # Automated Testnet launcher
+├── launch_Testnet.sh      # Launcher for Linux/macOS
 └── README.md             # This file
 ```
 
@@ -225,3 +225,4 @@ Built with:
 **⚠️ Disclaimer**: This is experimental software. Not recommended for production use without additional security hardening.
 
 **Built with ❤️ in Rust**
+

@@ -158,6 +158,11 @@ impl ValidatorSet {
             .collect()
     }
 
+    /// Get all validators
+    pub fn get_all_validators(&self) -> Vec<ValidatorInfo> {
+        self.validators.values().cloned().collect()
+    }
+
 
 }
 

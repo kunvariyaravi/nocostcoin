@@ -5,7 +5,7 @@ use crate::state::State;
 /// Transaction Mempool to store unconfirmed transactions
 #[derive(Debug, Clone)]
 pub struct Mempool {
-    transactions: HashMap<Vec<u8>, Transaction>, // Hash -> Transaction
+    pub transactions: HashMap<Vec<u8>, Transaction>, // Hash -> Transaction
     capacity: usize,
 }
 
@@ -60,12 +60,6 @@ impl Mempool {
             },
              crate::transaction::TransactionData::DelegateSpend { .. } => {
                  // Nothing to check against state for setting up delegate
-            },
-            crate::transaction::TransactionData::LendingSupply { .. } |
-            crate::transaction::TransactionData::LendingWithdraw { .. } |
-            crate::transaction::TransactionData::LendingBorrow { .. } |
-            crate::transaction::TransactionData::LendingRepay { .. } => {
-                // Complex validation happens in execution
             },
             _ => {
                 // Other types logic

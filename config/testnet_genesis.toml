@@ -1,0 +1,23 @@
+# Official Nocostcoin Testnet Genesis Configuration
+# Launch Date: Dec 9 2024
+
+[network]
+port = 9000
+bootstrap_peers = [
+    "/dns4/bootnode-1.nocostcoin.com/tcp/9000",
+    "/dns4/bootnode-2.nocostcoin.com/tcp/9000"
+]
+listen_addr = "/ip4/0.0.0.0/tcp/9000"
+
+[genesis]
+# Dec 9 2024 00:00:00 UTC
+genesis_time = 1733760000000 
+genesis_seed = "nocostcoin-testnet-official-seed-v1"
+initial_validators = [
+    "nocostcoin_bootnode_1_seed",
+    "nocostcoin_bootnode_2_seed",
+    "nocostcoin_bootnode_3_seed"
+]
+
+[mining]
+enabled = true

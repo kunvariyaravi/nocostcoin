@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-Nocostcoin is a high-performance Layer 1 blockchain explicitly designed for the **Machine Economy**. It moves beyond the limitations of general-purpose Virtual Machines (like the EVM) by implementing high-frequency economic primitives—Assets, NFTs, Streaming, and Lending—directly into the core protocol.
+Nocostcoin is a high-performance Layer 1 blockchain explicitly designed for the **Machine Economy**. It moves beyond the limitations of general-purpose Virtual Machines (like the EVM) by implementing high-frequency economic primitives—Assets, NFTs, and Streaming—directly into the core protocol.
 
 By enshrining these features ("Native Primitives"), Nocostcoin achieves raw machine performance, lower fees, and higher security for AI agents, while eliminating the "smart contract risk" associated with basic operations.
 
@@ -33,7 +33,7 @@ The state uses a **Merkle Patricia Trie** but is segmented into specialized Regi
 -   **Account Registry**: Balances and Nonces.
 -   **Asset Registry**: Metadata for native tokens and NFTS.
 -   **Channel Registry**: State of open payment channels.
--   **Lending Registry**: Global liquidity pools for native DeFi.
+
 
 ## 4. Native Primitives (The "No Code" Layer)
 
@@ -60,12 +60,7 @@ Unlike Ethereum, where creating a token requires writing and deploying code (ERC
 -   They exchange thousands of signed balance updates off-chain (millisecond latency).
 -   They settle the final result on-chain.
 
-#### 4.2.3 Native Lending (DeFi Protocol)
-**Problem**: Generic DeFi protocols are subject to hacks and high fees.
-**Solution**: An enshrined Lending Market.
--   **Global Pools**: The protocol manages liquidity pools for designated assets.
--   **Transactions**: `LendingSupply`, `LendingBorrow`, `LendingRepay`.
--   **Safety**: Logic is written in rigorous Rust core code, not interpreted Solidity.
+
 
 ## 5. Security & Performance
 
@@ -80,7 +75,7 @@ Unlike Ethereum, where creating a token requires writing and deploying code (ERC
 ## 6. Roadmap
 
 *   **Phase 1 (Done)**: Core Consensus, Native Assets, AI Primitives (Channels, Delegation).
-*   **Phase 2**: Native Lending Implementation (In Progress), Block Explorer.
+*   **Phase 2**: Block Explorer, Enhanced Tooling.
 *   **Phase 3**: WASM "Slow Path" for custom logic (Governance, DAOs).
 *   **Phase 4**: Mainnet Launch.
 

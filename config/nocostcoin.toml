@@ -1,0 +1,20 @@
+# Nocostcoin Configuration
+
+[network]
+port = 9000
+bootstrap_peers = []
+listen_addr = "/ip4/127.0.0.1/tcp/9000"
+
+[genesis]
+# Dec 9 2024 00:00:00 UTC
+genesis_time = 1733760000000 
+genesis_seed = "nocostcoin-genesis-seed"
+initial_validators = [
+    "nocostcoin_node_9000_seed",
+    "nocostcoin_node_9001_seed",
+    "nocostcoin_node_9002_seed"
+]
+
+[mining]
+enabled = true
+# validator_seed = "..." # Uncomment to enforce deterministic mining identity

@@ -2,16 +2,16 @@
 
 ## 🚀 Quick Start Commands
 
-### Launch Devnet
+### Launch Testnet
 ```powershell
 # Automated (Windows)
 .\demo.ps1
 
 # Or simple launch
-.\launch_devnet.ps1
+.\launch_Testnet.ps1
 
 # Linux/macOS
-./launch_devnet.sh
+./launch_Testnet.sh
 ```
 
 ### Manual Node Launch
@@ -47,7 +47,7 @@ cargo run --release -- --port 9002 --bootstrap /ip4/127.0.0.1/tcp/9000
 
 ## 🔧 Troubleshooting
 
-### Reset Devnet
+### Reset Testnet
 ```powershell
 # Stop all nodes (Ctrl+C)
 Remove-Item -Recurse nocostcoin_db_*
@@ -90,7 +90,7 @@ Stop-Process -Id <PID>
    - Stake-weighted selection
 
 4. **Developer Experience**
-   - One-command devnet
+   - One-command Testnet
    - Interactive CLI
    - Comprehensive docs
 
@@ -105,7 +105,7 @@ Stop-Process -Id <PID>
 ## 📱 Social Media Snippets
 
 **Twitter Bio:**
-"Blockchain with Proof of Determinism consensus. 2s blocks, VRF verification, built in Rust. Devnet-ready! 🦀⛓️"
+"Blockchain with Proof of Determinism consensus. 2s blocks, VRF verification, built in Rust. Testnet-ready! 🦀⛓️"
 
 **One-liner:**
 "Nocostcoin: A deterministic blockchain with VRF-based consensus, achieving 2-second block times without mining."
@@ -137,7 +137,7 @@ Determinism" consensus mechanism. It achieves:
 • 2-second block times
 • Deterministic leader selection
 • VRF-based security
-• One-command devnet
+• One-command Testnet
 
 Would love your feedback!
 
@@ -151,3 +151,4 @@ Best,
 ---
 
 **Print this card for quick reference during demos!**
+

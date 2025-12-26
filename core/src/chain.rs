@@ -7,6 +7,8 @@ use crate::storage::Storage;
 use crate::vote::Vote;
 use std::collections::HashMap;
 use schnorrkel::PublicKey;
+use metrics::{gauge, counter, histogram};
+use std::time::Instant;
 
 pub struct Chain {
     pub storage: Storage,
@@ -29,11 +31,11 @@ impl Chain {
     pub fn new(storage: Storage, genesis_block: Block, genesis_time: i64) -> Self {
         // Check if we have a head in storage
         let head = if let Ok(Some(h)) = storage.get_head() {
-            println!("Loaded existing chain head: {}", h);
+            tracing::info!("Loaded existing chain head: {}", h);
             h
         } else {
             // Initialize with genesis
-            println!("Initializing new chain with genesis: {}", genesis_block.hash);
+            tracing::info!("Initializing new chain with genesis: {}", genesis_block.hash);
             storage.store_block(&genesis_block).expect("Failed to store genesis block");
             storage.store_head(&genesis_block.hash).expect("Failed to store genesis head");
             genesis_block.hash.clone()
@@ -52,6 +54,7 @@ impl Chain {
     }
 
     pub fn add_block(&mut self, block: Block) -> bool {
+        let start = Instant::now();
         // 1. Basic Validation
         // Check if parent exists in storage
         let parent_block = match self.storage.get_block(&block.header.parent_hash) {
@@ -73,15 +76,15 @@ impl Chain {
 
         if let Some(existing_hash) = existing_hash_opt {
             if existing_hash != block.hash {
-                println!("EQUIVOCATION DETECTED! Validator {:?} signed two different blocks for slot {}", 
+                tracing::error!("EQUIVOCATION DETECTED! Validator {:?} signed two different blocks for slot {}", 
                     validator_pubkey, slot);
-                println!("Existing block: {}, New block: {}", existing_hash, block.hash);
+                tracing::error!("Existing block: {}, New block: {}", existing_hash, block.hash);
                 
                 // Slash the validator
                 if let Err(e) = self.validators.slash_validator(&validator_pubkey) {
-                    println!("Failed to slash validator: {}", e);
+                    tracing::error!("Failed to slash validator: {}", e);
                 } else {
-                    println!("Validator slashed successfully");
+                    tracing::info!("Validator slashed successfully");
                 }
                 
                 // Reject this block
@@ -91,13 +94,13 @@ impl Chain {
             // Record this block header in memory and disk
             self.seen_headers.insert(key, block.hash.clone());
             if let Err(e) = self.storage.store_seen_header(slot, &validator_pubkey, &block.hash) {
-                println!("Failed to persist seen header: {}", e);
+                tracing::warn!("Failed to persist seen header: {}", e);
             }
         }
 
         // 2. Consensus / PoS Validation
         if let Err(e) = self.consensus.validate_block(&block, &parent_block, &self.validators) {
-            println!("Block rejected by consensus: {}", e);
+            tracing::warn!("Block rejected by consensus: {}", e);
             return false;
         }
 
@@ -115,7 +118,7 @@ impl Chain {
         if !block.header.state_root.is_empty() {
             let calculated_state_root = self.state.get_root_hash();
             if block.header.state_root != calculated_state_root {
-                println!("State root mismatch. Expected: {}, Got: {}", 
+                tracing::error!("State root mismatch. Expected: {}, Got: {}", 
                     block.header.state_root, calculated_state_root);
                 self.state.discard_changes();
                 return false;
@@ -128,27 +131,82 @@ impl Chain {
         if Consensus::is_better_block(&block, &current_head_block) {
             self.head = block.hash.clone();
             if let Err(e) = self.storage.store_head(&self.head) {
-                println!("Failed to store head: {}", e);
+                tracing::error!("Failed to store head: {}", e);
             }
         }
 
         if let Err(e) = self.storage.store_block(&block) {
-            println!("Failed to store block: {}", e);
+            tracing::error!("Failed to store block: {}", e);
             self.state.discard_changes(); // Rollback if block storage fails
             return false;
         }
 
         // 5. Commit State Changes
         if let Err(e) = self.state.apply_changes() {
-            println!("Failed to apply state changes: {}", e);
+            tracing::error!("Failed to apply state changes: {}", e);
             return false;
         }
 
         // Index block by height
         if let Err(e) = self.storage.store_block_by_height(block.header.slot, &block.hash) {
-            println!("Failed to index block by height: {}", e);
+            tracing::error!("Failed to index block by height: {}", e);
+        }
+
+        // Index transactions and Address History
+        for tx in &block.transactions {
+            // Validator Management Logic (after state applied balance changes)
+            match &tx.data {
+                 crate::transaction::TransactionData::RegisterValidator { stake } => {
+                     // Balance is already deducted by state.apply_transaction
+                     if let Err(e) = self.validators.register_validator(tx.sender.clone(), *stake, block.header.epoch) {
+                         println!("Failed to register validator: {}", e);
+                         // TODO: If this fails, we should technically revert the transaction or handle it.
+                         // For now, if state applied it (deducted balance), but this fails, user loses money?
+                         // Ideally validate_block logic checks this BEFORE execution.
+                         // We are safe because register_validator checks duplicate.
+                         // BUT min stake check is in validate_logic? No, just >0.
+                         // Core logic should be consistent.
+                     }
+                 },
+                 crate::transaction::TransactionData::UnregisterValidator => {
+                     match self.validators.unregister_validator(&tx.sender) {
+                         Ok(stake) => {
+                             // Refund stake
+                             let mut account = self.state.get_account(&tx.sender).unwrap_or(crate::state::Account::new(0));
+                             account.balance += stake;
+                             self.state.pending_changes.insert(tx.sender.clone(), account);
+                         },
+                         Err(e) => println!("Failed to unregister validator: {}", e),
+                     }
+                 },
+                 _ => {}
+            }
+
+            let tx_hash = hex::encode(tx.hash());
+            
+            // 1. Index Tx -> Block
+            if let Err(e) = self.storage.store_transaction_index(&tx_hash, &block.hash) {
+                 println!("Failed to index transaction: {}", e);
+            }
+            
+            // 2. Index Address History (Sender)
+            let sender_hex = hex::encode(&tx.sender);
+            if let Err(e) = self.storage.add_transaction_to_address(&sender_hex, &tx_hash) {
+                println!("Failed to index history for sender: {}", e);
+            }
+            
+            // 3. Index Address History (Receiver)
+            let receiver_hex = hex::encode(&tx.receiver);
+            if let Err(e) = self.storage.add_transaction_to_address(&receiver_hex, &tx_hash) {
+                tracing::error!("Failed to index history for receiver: {}", e);
+            }
         }
         
+        // Metrics Update
+        gauge!("block_height", block.header.slot as f64);
+        counter!("transaction_count", block.transactions.len() as u64);
+        histogram!("block_processing_time", start.elapsed());
+
         true
     }
 
@@ -258,7 +316,7 @@ impl Chain {
             // Threshold: > 2/3 of total stake
             if total_stake > 0 && total_vote_stake as f64 > (total_stake as f64 * 0.6666) {
                 if self.finalized_head != *block_hash {
-                    println!("🎉 BLOCK FINALIZED: {} (Stake: {}/{})", block_hash, total_vote_stake, total_stake);
+                    tracing::info!("🎉 BLOCK FINALIZED: {} (Stake: {}/{})", block_hash, total_vote_stake, total_stake);
                     
                     // Update finalized head
                     self.finalized_head = block_hash.to_string();

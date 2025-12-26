@@ -1,5 +1,3 @@
-import styles from './StatsCard.module.css';
-
 interface StatsCardProps {
     label: string;
     value: string | number;
@@ -8,10 +6,10 @@ interface StatsCardProps {
 
 export default function StatsCard({ label, value, subValue }: StatsCardProps) {
     return (
-        <div className={styles.card}>
-            <span className={styles.label}>{label}</span>
-            <span className={styles.value}>{value}</span>
-            {subValue && <span className={styles.subValue}>{subValue}</span>}
+        <div className="card text-center">
+            <span className="text-sm text-gray-600 uppercase tracking-wide block mb-2">{label}</span>
+            <span className="text-3xl font-bold text-gray-900 block">{value}</span>
+            {subValue && <span className="text-sm text-gray-500 block mt-1">{subValue}</span>}
         </div>
     );
 }

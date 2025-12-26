@@ -16,6 +16,8 @@ use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use futures::StreamExt;
+use metrics::{gauge, counter};
+use tracing::{info, error, warn};
 
 use crate::block::Block;
 use crate::vote;
@@ -163,7 +165,7 @@ impl NetworkNode {
         // Generate a random peer ID
         let local_key = libp2p::identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
-        println!("Local peer id: {}", local_peer_id);
+        info!("Local peer id: {}", local_peer_id);
 
         // Set up transport with noise encryption and yamux multiplexing
         let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
@@ -209,17 +211,10 @@ impl NetworkNode {
         );
 
         // Configure Kademlia DHT
-        let mut kademlia = kad::Behaviour::new(
+        let kademlia = kad::Behaviour::new(
             local_peer_id,
             kad::store::MemoryStore::new(local_peer_id),
         );
-
-        // Add bootstrap peers to Kademlia
-        for peer_addr in &config.bootstrap_peers {
-            if let Ok(addr) = peer_addr.parse() {
-                kademlia.add_address(&local_peer_id, addr);
-            }
-        }
 
         // Configure mDNS for local peer discovery
         let mdns = mdns::tokio::Behaviour::new(
@@ -264,6 +259,16 @@ impl NetworkNode {
         // Listen on the configured address
         swarm.listen_on(config.listen_addr.parse()?)?;
 
+        // Dial bootstrap peers
+        for peer_addr_str in &config.bootstrap_peers {
+            if let Ok(addr) = peer_addr_str.parse::<libp2p::Multiaddr>() {
+                info!("Dialing bootstrap peer: {}", addr);
+                if let Err(e) = swarm.dial(addr.clone()) {
+                    warn!("Failed to dial bootstrap peer {}: {}", addr, e);
+                }
+            }
+        }
+
         // Create command channel
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
@@ -290,14 +295,16 @@ impl NetworkNode {
                             self.handle_behaviour_event(event).await;
                         }
                         SwarmEvent::NewListenAddr { address, .. } => {
-                            println!("Listening on {}", address);
+                            info!("Listening on {}", address);
                         }
                         SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                            println!("Connected to peer: {}", peer_id);
+                            info!("Connected to peer: {}", peer_id);
+                            // gauge!("connected_peers").increment(1.0);
                             let _ = self.sync_tx.send(SyncMessage::PeerConnected { peer_id });
                         }
                         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
-                            println!("Connection closed with {}: {:?}", peer_id, cause);
+                            info!("Connection closed with {}: {:?}", peer_id, cause);
+                            // gauge!("connected_peers").decrement(1.0);
                             let _ = self.sync_tx.send(SyncMessage::PeerDisconnected { peer_id });
                         }
                         _ => {}
@@ -320,7 +327,7 @@ impl NetworkNode {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::NewBlock(block)) {
                     let topic = gossipsub::IdentTopic::new("nocostcoin/blocks/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
-                        eprintln!("Failed to publish block: {}", e);
+                        error!("Failed to publish block: {}", e);
                     }
                 }
             }
@@ -328,7 +335,7 @@ impl NetworkNode {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::NewTransaction(tx)) {
                     let topic = gossipsub::IdentTopic::new("nocostcoin/txs/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
-                        eprintln!("Failed to publish transaction: {}", e);
+                        error!("Failed to publish transaction: {}", e);
                     }
                 }
             }
@@ -336,7 +343,7 @@ impl NetworkNode {
                 if let Ok(data) = bincode::serialize(&NetworkMessage::Vote(vote)) {
                     let topic = gossipsub::IdentTopic::new("nocostcoin/votes/1.0.0");
                     if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
-                        eprintln!("Failed to publish vote: {}", e);
+                        error!("Failed to publish vote: {}", e);
                     }
                 }
             }
@@ -348,7 +355,7 @@ impl NetworkNode {
             }
             NetworkCommand::SendResponse { channel, response } => {
                 if let Err(_) = self.swarm.behaviour_mut().request_response.send_response(channel, response) {
-                    eprintln!("Failed to send response: (connection closed)");
+                    warn!("Failed to send response: (connection closed)");
                 }
             }
         }
@@ -387,14 +394,14 @@ impl NetworkNode {
             }
             NocostcoinBehaviourEvent::Mdns(mdns::Event::Discovered(list)) => {
                 for (peer_id, multiaddr) in list {
-                    println!("Discovered peer {} at {}", peer_id, multiaddr);
+                    info!("Discovered peer {} at {}", peer_id, multiaddr);
                     self.swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                     self.swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
                 }
             }
             NocostcoinBehaviourEvent::Mdns(mdns::Event::Expired(list)) => {
                 for (peer_id, multiaddr) in list {
-                    println!("Peer {} at {} expired", peer_id, multiaddr);
+                    info!("Peer {} at {} expired", peer_id, multiaddr);
                     self.swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
                 }
             }
@@ -403,10 +410,10 @@ impl NetworkNode {
                 addresses,
                 ..
             }) => {
-                println!("Routing updated for peer {}: {:?}", peer, addresses);
+                // debug!("Routing updated for peer {}: {:?}", peer, addresses);
             }
             NocostcoinBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
-                println!("Identified peer {}: {:?} (Protocol: {:?})", peer_id, info.agent_version, info.protocol_version);
+                info!("Identified peer {}: {:?} (Protocol: {:?})", peer_id, info.agent_version, info.protocol_version);
                 // Add identified address to Kademlia
                  for addr in info.listen_addrs.iter() {
                     self.swarm.behaviour_mut().kademlia.add_address(&peer_id, addr.clone());
@@ -424,11 +431,11 @@ impl NetworkNode {
             NocostcoinBehaviourEvent::Ping(ping::Event { peer, result, .. }) => {
                 // Optional: log ping success/failure
                  if let Err(e) = result {
-                    println!("Ping failure with {}: {:?}", peer, e);
+                    warn!("Ping failure with {}: {:?}", peer, e);
                  }
             }
             NocostcoinBehaviourEvent::Autonat(autonat::Event::StatusChanged { old, new }) => {
-                 println!("AutoNAT status changed: {:?} -> {:?}", old, new);
+                 info!("AutoNAT status changed: {:?} -> {:?}", old, new);
             }
             _ => {}
         }
@@ -439,21 +446,24 @@ impl NetworkNode {
         if let Ok(network_msg) = bincode::deserialize::<NetworkMessage>(&message.data) {
             match network_msg {
                 NetworkMessage::NewBlock(block) => {
-                    println!("Received new block: {}", block.hash);
+                    info!("Received new block: {}", block.hash);
+                    // counter!("messages_received", "type" => "block").increment(1);
                     if let Err(e) = self.block_tx.send(block) {
-                        eprintln!("Failed to forward block to chain: {}", e);
+                        error!("Failed to forward block to chain: {}", e);
                     }
                 }
                 NetworkMessage::NewTransaction(tx) => {
-                    println!("Received new transaction");
+                    info!("Received new transaction");
+                    // counter!("messages_received", "type" => "tx").increment(1);
                     if let Err(e) = self.transaction_tx.send(tx) {
-                        eprintln!("Failed to forward transaction to chain: {}", e);
+                        error!("Failed to forward transaction to chain: {}", e);
                     }
                 }
                 NetworkMessage::Vote(vote) => {
-                    // println!("Received vote for block {}", vote.block_hash);
+                    // debug!("Received vote for block {}", vote.block_hash);
+                    // counter!("messages_received", "type" => "vote").increment(1);
                     if let Err(e) = self.vote_tx.send(vote) {
-                        eprintln!("Failed to forward vote to chain: {}", e);
+                        error!("Failed to forward vote to chain: {}", e);
                     }
                 }
             }

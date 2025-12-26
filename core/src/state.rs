@@ -12,12 +12,7 @@ pub struct Account {
     pub nfts: HashMap<Vec<u8>, Vec<u64>>, // CollectionID -> Wrapped Item IDs
     
     // Delegate -> Remaining Allowance
-    pub delegated_allowance: HashMap<Vec<u8>, u64>, 
-    
-    // AssetID -> Amount Supplied
-    pub lending_supplied: HashMap<Vec<u8>, u64>, 
-    // AssetID -> Amount Borrowed
-    pub lending_borrowed: HashMap<Vec<u8>, u64>,
+    pub delegated_allowance: HashMap<Vec<u8>, u64>,
 }
 
 impl Account {
@@ -28,8 +23,6 @@ impl Account {
             assets: HashMap::new(),
             nfts: HashMap::new(),
             delegated_allowance: HashMap::new(),
-            lending_supplied: HashMap::new(),
-            lending_borrowed: HashMap::new(),
         }
     }
 }
@@ -73,25 +66,18 @@ pub struct PaymentChannel {
     pub is_closed: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LendingPool {
-    pub asset_id: Vec<u8>,
-    pub total_supplied: u64,
-    pub total_borrowed: u64,
-    pub reserve_factor: u64, 
-}
+
 
 #[derive(Clone)]
 pub struct State {
     storage: Storage,
-    pending_changes: HashMap<Vec<u8>, Account>,
+    pub pending_changes: HashMap<Vec<u8>, Account>,
     trie: MerklePatriciaTrie,
     
     // In-memory cache for assets/collections (in a real system, these would also be in Storage/Trie)
     pub assets: HashMap<Vec<u8>, Asset>,
     pub collections: HashMap<Vec<u8>, Collection>,
     pub channels: HashMap<Vec<u8>, PaymentChannel>,
-    pub lending_pools: HashMap<Vec<u8>, LendingPool>,
 }
 
 impl State {
@@ -114,7 +100,6 @@ impl State {
             assets: HashMap::new(),
             collections: HashMap::new(),
             channels: HashMap::new(),
-            lending_pools: HashMap::new(),
         }
     }
 
@@ -180,17 +165,21 @@ impl State {
             TransactionData::DelegateSpend { delegate, allowance, expiry: _ } => {
                 self.delegate_spend(&tx.sender, delegate, *allowance)?;
             },
-            TransactionData::LendingSupply { asset_id, amount } => {
-                self.lending_supply(&tx.sender, asset_id, *amount)?;
+            TransactionData::RegisterValidator { stake } => {
+                // Deduct stake from balance
+                let mut account = self.get_account(&tx.sender).ok_or("Account not found")?;
+                if account.balance < *stake {
+                    return Err("Insufficient balance for stake".to_string());
+                }
+                account.balance -= stake;
+                self.pending_changes.insert(tx.sender.clone(), account);
             },
-            TransactionData::LendingWithdraw { asset_id, amount } => {
-                self.lending_withdraw(&tx.sender, asset_id, *amount)?;
-            },
-            TransactionData::LendingBorrow { asset_id, amount, collateral_asset_id } => {
-                self.lending_borrow(&tx.sender, asset_id, *amount, collateral_asset_id)?;
-            },
-            TransactionData::LendingRepay { asset_id, amount } => {
-                self.lending_repay(&tx.sender, asset_id, *amount)?;
+            TransactionData::UnregisterValidator => {
+                // Refund is handled by Chain/ValidatorSet interaction since State doesn't know staked amount.
+                // Here we just validate account existence
+                if self.get_account(&tx.sender).is_none() {
+                    return Err("Account not found".to_string());
+                }
             },
         }
 
@@ -201,6 +190,11 @@ impl State {
     }
 
     fn transfer_native(&mut self, from: &[u8], to: &[u8], amount: u64) -> Result<(), String> {
+        // Reject self-transfers - sending to yourself is not allowed
+        if from == to {
+            return Err("Cannot send tokens to yourself".to_string());
+        }
+
         let mut from_account = self.get_account(from).ok_or("Sender account not found")?;
         
         if from_account.balance < amount {
@@ -418,128 +412,6 @@ impl State {
         owner_account.delegated_allowance.insert(delegate.to_vec(), allowance);
         
         self.pending_changes.insert(owner.to_vec(), owner_account);
-        Ok(())
-    }
-
-    fn lending_supply(&mut self, sender: &[u8], asset_id: &[u8], amount: u64) -> Result<(), String> {
-        // 1. Check user asset balance
-        let mut account = self.get_account(sender).ok_or("Account not found")?;
-        let current_balance = account.assets.get(asset_id).cloned().unwrap_or(0);
-        if current_balance < amount {
-            return Err("Insufficient asset balance to supply".to_string());
-        }
-
-        // 2. Init global pool if needed
-        let pool = self.lending_pools.entry(asset_id.to_vec()).or_insert(LendingPool {
-            asset_id: asset_id.to_vec(),
-            total_supplied: 0,
-            total_borrowed: 0,
-            reserve_factor: 0,
-        });
-
-        // 3. Update global pool
-        pool.total_supplied += amount;
-
-        // 4. Update user state (deduct asset, add supply usage)
-        account.assets.insert(asset_id.to_vec(), current_balance - amount);
-        let current_supplied = account.lending_supplied.get(asset_id).cloned().unwrap_or(0);
-        account.lending_supplied.insert(asset_id.to_vec(), current_supplied + amount);
-        
-        self.pending_changes.insert(sender.to_vec(), account);
-        Ok(())
-    }
-
-    fn lending_withdraw(&mut self, sender: &[u8], asset_id: &[u8], amount: u64) -> Result<(), String> {
-        let mut account = self.get_account(sender).ok_or("Account not found")?;
-        let supplied = account.lending_supplied.get(asset_id).cloned().unwrap_or(0);
-        
-        if supplied < amount {
-            return Err("Insufficient supplied balance to withdraw".to_string());
-        }
-
-        // 1. Check liquidity (Simulated: assume always liquid for now unless total_borrowed > total_supplied - amount)
-        let pool = self.lending_pools.get_mut(asset_id).ok_or("Lending pool not found")?;
-        if pool.total_supplied < amount {
-             return Err("Pool error: supplied amount mismatch".to_string());
-        }
-        let available_liquidity = pool.total_supplied - pool.total_borrowed;
-        if amount > available_liquidity {
-            return Err("Insufficient pool liquidity to withdraw".to_string());
-        }
-
-        // Update pools and user
-        pool.total_supplied -= amount;
-        
-        account.lending_supplied.insert(asset_id.to_vec(), supplied - amount);
-        let current_asset_balance = account.assets.get(asset_id).cloned().unwrap_or(0);
-        account.assets.insert(asset_id.to_vec(), current_asset_balance + amount);
-
-        self.pending_changes.insert(sender.to_vec(), account);
-        Ok(())
-    }
-
-    fn lending_borrow(&mut self, sender: &[u8], asset_id: &[u8], amount: u64, collateral_asset_id: &[u8]) -> Result<(), String> {
-        let mut account = self.get_account(sender).ok_or("Account not found")?;
-        
-        // 1. Check Collateral
-        // Rule: Can borrow up to 50% of collateral value.
-        // Simplified: 1 Unit Collateral = 1 Unit Borrow. (Assuming 1:1 price and same decimals for prototype)
-        // In real world, we need an Oracle price feed.
-        let m_collateral = account.lending_supplied.get(collateral_asset_id).cloned().unwrap_or(0);
-        let m_borrowed_already = account.lending_borrowed.get(asset_id).cloned().unwrap_or(0); // Only tracking this asset borrow for simplicity
-        
-        // Check if total borrowed (new + old) <= 50% * collateral
-        // Prototype simplification: 1 Collateral allows 0.5 Borrow
-        let max_borrow = m_collateral / 2;
-        
-        if m_borrowed_already + amount > max_borrow {
-             return Err("Insufficient collateral".to_string());
-        }
-
-        // 2. Check Pool Liquidity
-        let pool = self.lending_pools.entry(asset_id.to_vec()).or_insert(LendingPool {
-            asset_id: asset_id.to_vec(),
-            total_supplied: 0,
-            total_borrowed: 0,
-            reserve_factor: 0,
-        });
-        
-        let available = pool.total_supplied - pool.total_borrowed;
-        if amount > available {
-            return Err("Insufficient liquidity in pool".to_string());
-        }
-
-        // 3. Update State
-        pool.total_borrowed += amount;
-        account.lending_borrowed.insert(asset_id.to_vec(), m_borrowed_already + amount);
-        let user_asset_balance = account.assets.get(asset_id).cloned().unwrap_or(0);
-        account.assets.insert(asset_id.to_vec(), user_asset_balance + amount);
-
-        self.pending_changes.insert(sender.to_vec(), account);
-        Ok(())
-    }
-
-    fn lending_repay(&mut self, sender: &[u8], asset_id: &[u8], amount: u64) -> Result<(), String> {
-        let mut account = self.get_account(sender).ok_or("Account not found")?;
-        
-        let user_asset_balance = account.assets.get(asset_id).cloned().unwrap_or(0);
-        if user_asset_balance < amount {
-            return Err("Insufficient balance to repay".to_string());
-        }
-
-        let borrowed = account.lending_borrowed.get(asset_id).cloned().unwrap_or(0);
-        if borrowed < amount {
-             return Err("Repay amount exceeds borrowed amount".to_string());
-        }
-
-        let pool = self.lending_pools.get_mut(asset_id).ok_or("Pool not found")?;
-
-        // Update State
-        pool.total_borrowed -= amount;
-        account.lending_borrowed.insert(asset_id.to_vec(), borrowed - amount);
-        account.assets.insert(asset_id.to_vec(), user_asset_balance - amount);
-
-        self.pending_changes.insert(sender.to_vec(), account);
         Ok(())
     }
 
@@ -794,77 +666,5 @@ mod tests {
         let result = state.apply_transaction(&mint_tx);
         assert!(result.is_err());
         assert_eq!(result.err().unwrap(), "Only issuer can mint");
-    }
-
-    #[test]
-    fn test_lending_supply_borrow_repay() {
-        let (mut state, _temp) = create_test_state();
-        let keypair = Crypto::generate_keypair();
-        let user = keypair.public.to_bytes().to_vec();
-        
-        let lender_pair = Crypto::generate_keypair();
-        let lender = lender_pair.public.to_bytes().to_vec();
-
-        // 1. Setup: Create Asset A (Collateral) and Asset B (Borrowable)
-        let create_a = Transaction::new(user.clone(), vec![], TransactionData::CreateAsset {
-            name: "Collateral".into(), symbol: "COL".into(), supply: 1000, decimals: 0, metadata: vec![]
-        }, 0, &keypair);
-        state.apply_transaction(&create_a).unwrap();
-        let asset_a = create_a.calculate_asset_id().unwrap();
-
-        let create_b = Transaction::new(lender.clone(), vec![], TransactionData::CreateAsset {
-            name: "Stable".into(), symbol: "STB".into(), supply: 1000, decimals: 0, metadata: vec![]
-        }, 0, &lender_pair);
-        state.apply_transaction(&create_b).unwrap();
-        let asset_b = create_b.calculate_asset_id().unwrap();
-
-        // 2. Lender supplies Asset B to pool
-        let supply_tx = Transaction::new(lender.clone(), vec![], TransactionData::LendingSupply {
-            asset_id: asset_b.clone(), amount: 1000
-        }, 1, &lender_pair);
-        state.apply_transaction(&supply_tx).expect("Lender supply failed");
-
-        // 3. User supplies Asset A (as collateral)
-        let supply_col_tx = Transaction::new(user.clone(), vec![], TransactionData::LendingSupply {
-            asset_id: asset_a.clone(), amount: 500
-        }, 1, &keypair);
-        state.apply_transaction(&supply_col_tx).expect("User collateral supply failed");
-
-        // 4. User borrows Asset B against Asset A
-        // Max borrow = 50% of 500 = 250
-        let borrow_tx = Transaction::new(user.clone(), vec![], TransactionData::LendingBorrow {
-            asset_id: asset_b.clone(),
-            amount: 200,
-            collateral_asset_id: asset_a.clone(),
-        }, 2, &keypair);
-        state.apply_transaction(&borrow_tx).expect("Borrow failed");
-
-        // Check balances
-        let user_acc = state.get_account(&user).unwrap();
-        assert_eq!(*user_acc.assets.get(&asset_b).unwrap(), 200); // Has borrowed funds
-        assert_eq!(*user_acc.lending_borrowed.get(&asset_b).unwrap(), 200); // Debt recorded
-
-        // 5. Try to borrow more (exceeding limit)
-        // Used 200/250. Try borrow 100 -> 300 > 250. Should fail.
-        let borrow_fail_tx = Transaction::new(user.clone(), vec![], TransactionData::LendingBorrow {
-            asset_id: asset_b.clone(),
-            amount: 100,
-            collateral_asset_id: asset_a.clone(),
-        }, 3, &keypair);
-        let res = state.apply_transaction(&borrow_fail_tx);
-        assert!(res.is_err());
-        assert_eq!(res.err().unwrap(), "Insufficient collateral");
-
-        // 6. Repay
-        // Note: borrow_fail_tx failed, so nonce was NOT incremented. It should still be 3.
-        let repay_tx = Transaction::new(user.clone(), vec![], TransactionData::LendingRepay {
-            asset_id: asset_b.clone(),
-            amount: 100,
-        }, 3, &keypair);
-        state.apply_transaction(&repay_tx).expect("Repay failed");
-
-        let user_acc_after = state.get_account(&user).unwrap();
-        assert_eq!(*user_acc_after.lending_borrowed.get(&asset_b).unwrap(), 100);
-        assert_eq!(*user_acc_after.assets.get(&asset_b).unwrap(), 100); // 200 - 100
     }
 }

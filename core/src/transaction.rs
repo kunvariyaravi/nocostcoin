@@ -50,24 +50,10 @@ pub enum TransactionData {
         allowance: u64,
         expiry: u64, // Epoch or slot
     },
-    // Native Lending
-    LendingSupply {
-        asset_id: Vec<u8>,
-        amount: u64,
+    RegisterValidator {
+        stake: u64,
     },
-    LendingWithdraw {
-        asset_id: Vec<u8>,
-        amount: u64,
-    },
-    LendingBorrow {
-        asset_id: Vec<u8>,
-        amount: u64,
-        collateral_asset_id: Vec<u8>,
-    },
-    LendingRepay {
-        asset_id: Vec<u8>,
-        amount: u64,
-    },
+    UnregisterValidator,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -166,27 +152,14 @@ impl Transaction {
                 hasher.update(allowance.to_le_bytes());
                 hasher.update(expiry.to_le_bytes());
             },
-            TransactionData::LendingSupply { asset_id, amount } => {
-                hasher.update(b"LendingSupply");
-                hasher.update(asset_id);
-                hasher.update(amount.to_le_bytes());
+            TransactionData::RegisterValidator { stake } => {
+                hasher.update(b"RegisterValidator");
+                hasher.update(stake.to_le_bytes());
             },
-            TransactionData::LendingWithdraw { asset_id, amount } => {
-                hasher.update(b"LendingWithdraw");
-                hasher.update(asset_id);
-                hasher.update(amount.to_le_bytes());
+            TransactionData::UnregisterValidator => {
+                hasher.update(b"UnregisterValidator");
             },
-            TransactionData::LendingBorrow { asset_id, amount, collateral_asset_id } => {
-                hasher.update(b"LendingBorrow");
-                hasher.update(asset_id);
-                hasher.update(amount.to_le_bytes());
-                hasher.update(collateral_asset_id);
-            },
-             TransactionData::LendingRepay { asset_id, amount } => {
-                hasher.update(b"LendingRepay");
-                hasher.update(asset_id);
-                hasher.update(amount.to_le_bytes());
-            },
+
         }
 
         hasher.finalize().to_vec()
@@ -315,38 +288,13 @@ impl Transaction {
                     return Err("Allowance must be > 0".to_string());
                 }
             },
-            TransactionData::LendingSupply { asset_id, amount } => {
-                if asset_id.is_empty() {
-                    return Err("Asset ID required".to_string());
-                }
-                if *amount == 0 {
-                    return Err("Amount must be > 0".to_string());
-                }
+            TransactionData::RegisterValidator { stake } => {
+                 if *stake == 0 {
+                     return Err("Stake must be > 0".to_string());
+                 }
             },
-            TransactionData::LendingWithdraw { asset_id, amount } => {
-                 if asset_id.is_empty() {
-                    return Err("Asset ID required".to_string());
-                }
-                if *amount == 0 {
-                    return Err("Amount must be > 0".to_string());
-                }
-            },
-            TransactionData::LendingBorrow { asset_id, amount, collateral_asset_id } => {
-                if asset_id.is_empty() || collateral_asset_id.is_empty() {
-                     return Err("Asset IDs required".to_string());
-                }
-                if *amount == 0 {
-                    return Err("Amount must be > 0".to_string());
-                }
-            },
-             TransactionData::LendingRepay { asset_id, amount } => {
-                 if asset_id.is_empty() {
-                    return Err("Asset ID required".to_string());
-                }
-                if *amount == 0 {
-                    return Err("Amount must be > 0".to_string());
-                }
-            },
+            TransactionData::UnregisterValidator => {},
+
         }
 
         Ok(())

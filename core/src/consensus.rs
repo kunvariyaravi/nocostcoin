@@ -1,4 +1,4 @@
-use crate::block::{Block, BlockHeader};
+use crate::block::Block;
 use sha2::Digest;
 use chrono::Utc;
 use crate::validator::ValidatorSet;
@@ -105,6 +105,7 @@ impl Consensus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block::BlockHeader;
 
     fn create_dummy_block(slot: u64, vrf_output: Vec<u8>) -> Block {
         Block {

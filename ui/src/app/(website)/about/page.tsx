@@ -1,43 +1,40 @@
-import styles from "./page.module.css";
+import WebsiteNavbar from "@/components/Navbar/WebsiteNavbar";
 
-export default function AboutPage() {
+export default function About() {
     return (
-        <main className={styles.main}>
-            <section className={styles.hero}>
-                <h1 className={styles.title}>About Nocostcoin</h1>
-                <p className={styles.subtitle}>
-                    Pioneering the future of deterministic, zero-fee blockchain technology.
-                </p>
-            </section>
-
-            <section className={styles.content}>
-                <div className={styles.card}>
-                    <h2>Our Mission</h2>
-                    <p>
-                        To democratize access to blockchain technology by eliminating transaction fees
-                        and ensuring absolute predictability in consensus. We believe the future of
-                        decentralized finance should be accessible to everyone, cost-free.
+        <>
+            <WebsiteNavbar />
+            <main className="min-h-screen pt-20">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                    <h1 className="text-5xl font-bold text-gray-900 mb-6">About Nocostcoin</h1>
+                    <p className="text-xl text-gray-600 mb-12">
+                        Building the world&apos;s first truly zero-fee blockchain with deterministic consensus.
                     </p>
-                </div>
 
-                <div className={styles.card}>
-                    <h2>The Technology</h2>
-                    <p>
-                        Built on Rust, Nocostcoin leverages a unique Proof of Determinism consensus
-                        mechanism. This allows for lightning-fast, predictable block production without
-                        the resource-intensive competition of traditional Proof of Work or the wealth
-                        concentration of Proof of Stake.
-                    </p>
-                </div>
+                    <div className="prose prose-lg max-w-none">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Mission</h2>
+                        <p className="text-gray-700 mb-6">
+                            Nocostcoin was created to solve the fundamental problems plaguing modern blockchains:
+                            high transaction fees, slow confirmation times, and vulnerability to attacks. We believe
+                            that blockchain technology should be accessible to everyone, without the burden of gas fees.
+                        </p>
 
-                <div className={styles.card}>
-                    <h2>Open Source</h2>
-                    <p>
-                        Nocostcoin is fully open source. We believe in transparency and community-driven
-                        development. Every line of code is available for audit and contribution on GitHub.
-                    </p>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4 mt-12">The Technology</h2>
+                        <p className="text-gray-700 mb-6">
+                            Our innovative Proof of Determinism consensus mechanism ensures that every block has
+                            exactly one valid producer, eliminating forks and providing instant finality. Combined
+                            with Hidden Leader Election, we&apos;ve created a blockchain that&apos;s both secure and efficient.
+                        </p>
+
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4 mt-12">Why Zero Fees?</h2>
+                        <p className="text-gray-700 mb-6">
+                            Transaction fees create barriers to adoption and limit use cases. By implementing a
+                            unique Proof-of-Work puzzle system for spam prevention, we&apos;ve eliminated the need
+                            for fees entirely while maintaining network security.
+                        </p>
+                    </div>
                 </div>
-            </section>
-        </main>
+            </main>
+        </>
     );
 }
