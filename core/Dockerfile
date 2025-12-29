@@ -2,6 +2,10 @@
 FROM rust:1.75 as builder
 
 WORKDIR /usr/src/nocostcoin
+
+# Install build dependencies for RocksDB
+RUN apt-get update && apt-get install -y clang cmake
+
 COPY . .
 
 # Build release binary

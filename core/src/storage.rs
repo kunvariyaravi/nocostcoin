@@ -1,19 +1,25 @@
 use crate::block::Block;
 use crate::state::Account;
 use crate::vote::Vote;
-use sled::Db;
+use rocksdb::{DB, Options, IteratorMode, Direction};
 use std::path::Path;
 
 #[derive(Clone)]
+// RocksDB is not Clone by default like sled::Db, but we can wrap it in Arc if needed.
+// However, the rocksdb crate's DB handles Arcing internally usually? No, DB owns the pointer.
+// We should wrap it in Arc<DB> to allow cheap cloning of the Storage struct which is likely expected.
 pub struct Storage {
-    db: Db,
+    db: std::sync::Arc<DB>,
 }
 
 impl Storage {
     /// Open or create a database at the given path
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, String> {
-        let db = sled::open(path).map_err(|e| format!("Failed to open database: {}", e))?;
-        Ok(Self { db })
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        
+        let db = DB::open(&opts, path).map_err(|e| format!("Failed to open database: {}", e))?;
+        Ok(Self { db: std::sync::Arc::new(db) })
     }
 
     /// Store a block
@@ -23,7 +29,7 @@ impl Storage {
             .map_err(|e| format!("Failed to serialize block: {}", e))?;
         
         self.db
-            .insert(key.as_bytes(), value)
+            .put(key.as_bytes(), value)
             .map_err(|e| format!("Failed to store block: {}", e))?;
         
         Ok(())
@@ -50,7 +56,7 @@ impl Storage {
     pub fn store_block_by_height(&self, height: u64, hash: &str) -> Result<(), String> {
         let key = format!("height:{}", height);
         self.db
-            .insert(key.as_bytes(), hash.as_bytes())
+            .put(key.as_bytes(), hash.as_bytes())
             .map_err(|e| format!("Failed to store block by height: {}", e))?;
         Ok(())
     }
@@ -75,7 +81,7 @@ impl Storage {
     /// Store the current chain head
     pub fn store_head(&self, hash: &str) -> Result<(), String> {
         self.db
-            .insert(b"head", hash.as_bytes())
+            .put(b"head", hash.as_bytes())
             .map_err(|e| format!("Failed to store head: {}", e))?;
         Ok(())
     }
@@ -103,7 +109,7 @@ impl Storage {
             .map_err(|e| format!("Failed to serialize account: {}", e))?;
         
         self.db
-            .insert(&key, value)
+            .put(&key, value)
             .map_err(|e| format!("Failed to store account: {}", e))?;
         
         Ok(())
@@ -131,8 +137,15 @@ impl Storage {
         let mut accounts = Vec::new();
         let prefix = b"account:";
         
-        for item in self.db.scan_prefix(prefix) {
+        let iter = self.db.iterator(IteratorMode::From(prefix, Direction::Forward));
+        
+        for item in iter {
             let (key, value) = item.map_err(|e| format!("Failed to scan accounts: {}", e))?;
+            
+            // Check if key still starts with prefix
+            if !key.starts_with(prefix) {
+                break;
+            }
             
             // Extract address (remove "account:" prefix)
             let address = key[prefix.len()..].to_vec();
@@ -163,7 +176,7 @@ impl Storage {
         // Delete block data
         let block_key = format!("block:{}", hash);
         self.db
-            .remove(block_key.as_bytes())
+            .delete(block_key.as_bytes())
             .map_err(|e| format!("Failed to delete block: {}", e))?;
             
         Ok(())
@@ -186,7 +199,10 @@ impl Storage {
         for h in 1..target_height {
             let height_key = format!("height:{}", h);
             
-            if let Some(hash_bytes) = self.db.remove(height_key.as_bytes()).map_err(|e| e.to_string())? {
+            // We need to get the value first to return it, as delete doesn't return the old value in RocksDB
+            let height_key_bytes = height_key.as_bytes();
+            if let Some(hash_bytes) = self.db.get(height_key_bytes).map_err(|e| e.to_string())? {
+                self.db.delete(height_key_bytes).map_err(|e| e.to_string())?;
                 let hash = String::from_utf8(hash_bytes.to_vec())
                     .map_err(|e| format!("Failed to decode hash: {}", e))?;
                 
@@ -209,7 +225,7 @@ impl Storage {
     pub fn store_seen_header(&self, slot: u64, pubkey: &[u8], block_hash: &str) -> Result<(), String> {
         let key = format!("header:{}:{}", slot, hex::encode(pubkey));
         self.db
-            .insert(key.as_bytes(), block_hash.as_bytes())
+            .put(key.as_bytes(), block_hash.as_bytes())
             .map_err(|e| format!("Failed to store seen header: {}", e))?;
         Ok(())
     }
@@ -230,7 +246,7 @@ impl Storage {
         let value = bincode::serialize(vote)
             .map_err(|e| format!("Failed to serialize vote: {}", e))?;
             
-        self.db.insert(key.as_bytes(), value)
+        self.db.put(key.as_bytes(), value)
             .map_err(|e| format!("Failed to store vote: {}", e))?;
         Ok(())
     }
@@ -240,8 +256,13 @@ impl Storage {
         let prefix = format!("vote:{}", block_hash);
         let mut votes = Vec::new();
 
-        for item in self.db.scan_prefix(prefix.as_bytes()) {
-             let (_, value) = item.map_err(|e| format!("Failed to scan votes: {}", e))?;
+        let iter = self.db.iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward));
+
+        for item in iter {
+             let (key, value) = item.map_err(|e| format!("Failed to scan votes: {}", e))?;
+             if !key.starts_with(prefix.as_bytes()) {
+                 break;
+             }
              let vote: Vote = bincode::deserialize(&value)
                 .map_err(|e| format!("Failed to deserialize vote: {}", e))?;
              votes.push(vote);
@@ -258,7 +279,7 @@ impl Storage {
         let key = [b"faucet:", address].concat();
         let value = timestamp.to_le_bytes();
         
-        self.db.insert(&key, value.as_ref())
+        self.db.put(&key, value.as_ref())
             .map_err(|e| format!("Failed to record faucet claim: {}", e))?;
         Ok(())
     }
@@ -315,7 +336,7 @@ impl Storage {
     pub fn store_transaction_index(&self, tx_hash: &str, block_hash: &str) -> Result<(), String> {
         let key = format!("tx_index:{}", tx_hash);
         self.db
-            .insert(key.as_bytes(), block_hash.as_bytes())
+            .put(key.as_bytes(), block_hash.as_bytes())
             .map_err(|e| format!("Failed to store transaction index: {}", e))?;
         Ok(())
     }
@@ -352,11 +373,11 @@ impl Storage {
         
         // 2. Store item at current count
         let item_key = format!("history:{}:{}", address, count);
-        self.db.insert(item_key.as_bytes(), tx_hash.as_bytes())
+        self.db.put(item_key.as_bytes(), tx_hash.as_bytes())
             .map_err(|e| format!("Failed to store history item: {}", e))?;
             
         // 3. Increment count
-        self.db.insert(count_key.as_bytes(), (count + 1).to_le_bytes().as_ref())
+        self.db.put(count_key.as_bytes(), (count + 1).to_le_bytes().as_ref())
             .map_err(|e| format!("Failed to update history count: {}", e))?;
             
         Ok(())

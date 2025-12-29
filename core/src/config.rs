@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use chrono::Utc;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AppConfig {
@@ -45,7 +46,7 @@ impl AppConfig {
                 listen_addr: format!("/ip4/127.0.0.1/tcp/{}", port),
             },
             genesis: GenesisConfig {
-                genesis_time: 1733760000000,
+                genesis_time: 1766749000000,
                 genesis_seed: "nocostcoin-genesis-seed".to_string(),
                 initial_validators: vec![
                     "nocostcoin_node_9000_seed".to_string(),

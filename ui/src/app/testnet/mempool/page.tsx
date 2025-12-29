@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { ArchiveBoxIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { toHex } from '@/utils/hex';
 
 export default function MempoolPage() {
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -12,8 +14,6 @@ export default function MempoolPage() {
             const res = await fetch('/api/node/mempool');
             if (res.ok) {
                 const data = await res.json();
-                // Data from backend is List<Transaction>. 
-                // We might need to map it if structure differs, but typically it maps directly.
                 setTransactions(data);
             }
         } catch (e) {
@@ -25,91 +25,81 @@ export default function MempoolPage() {
 
     useEffect(() => {
         fetchMempool();
-        const interval = setInterval(fetchMempool, 3000);
+        const interval = setInterval(fetchMempool, 2000);
         return () => clearInterval(interval);
     }, []);
 
     return (
-        <main className="min-h-screen pt-20 pb-12 bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-4xl font-bold text-gray-900">Mempool</h1>
-                        <p className="text-gray-500 mt-1">Real-time pending transactions waiting for confirmation</p>
-                    </div>
-                    <div className="text-right">
-                        <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Pending Count</span>
-                        <p className="text-3xl font-bold text-primary-600">{transactions.length}</p>
-                    </div>
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-red-400">
+                        Mempool
+                    </h1>
+                    <p className="text-slate-400 mt-1">Pending transactions waiting to be included in a block.</p>
                 </div>
-
-                <div className="card">
-                    {loading && transactions.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">Loading mempool...</div>
-                    ) : transactions.length === 0 ? (
-                        <div className="text-center py-20 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
-                            <span className="text-4xl block mb-2">🍃</span>
-                            <p className="text-gray-500 font-medium">Mempool is empty</p>
-                            <p className="text-sm text-gray-400">All transactions have been confirmed.</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-gray-100 text-gray-500 text-sm font-medium">
-                                        <th className="pb-3 pl-4">Type</th>
-                                        <th className="pb-3">Sender</th>
-                                        <th className="pb-3">Receiver / Info</th>
-                                        <th className="pb-3 text-right pr-4">Amount / Fee</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {transactions.map((tx, i) => {
-                                        // Determine Type
-                                        let type = "Unknown";
-                                        let info = null;
-                                        let amount = 0;
-                                        const hash = Buffer.from(tx.signature).toString('hex').substring(0, 16); // Fallback hash
-
-                                        if (tx.data.NativeTransfer) {
-                                            type = "Transfer";
-                                            amount = tx.data.NativeTransfer.amount;
-                                            info = <Link href={`/testnet/explorer/address/${tx.receiver}`} className="font-mono hover:text-primary-600">{tx.receiver.substring(0, 8)}...{tx.receiver.substring(60)}</Link>;
-                                        } else if (tx.data.RegisterValidator) {
-                                            type = "Validator Reg";
-                                            amount = tx.data.RegisterValidator.stake;
-                                            info = <span className="text-gray-500 italic">Staking to Network</span>;
-                                        }
-
-                                        return (
-                                            <tr key={i} className="group hover:bg-gray-50 transition-colors">
-                                                <td className="py-4 pl-4">
-                                                    <span className={`badge ${type === 'Transfer' ? 'badge-info' : 'badge-warning'}`}>
-                                                        {type}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4">
-                                                    <Link href={`/testnet/explorer/address/${tx.sender}`} className="font-mono text-sm text-gray-600 hover:text-primary-600">
-                                                        {tx.sender.substring(0, 8)}...
-                                                    </Link>
-                                                    <div className="text-xs text-gray-400 mt-0.5">Nonce: {tx.nonce}</div>
-                                                </td>
-                                                <td className="py-4 text-sm text-gray-600">
-                                                    {info}
-                                                </td>
-                                                <td className="py-4 pr-4 text-right">
-                                                    <div className="font-bold text-gray-900">{amount > 0 ? `${amount} NCC` : '-'}</div>
-                                                    <div className="text-xs text-gray-400">Fee: 0 (Nocost)</div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400">
+                    <ArrowPathIcon className="w-4 h-4 animate-spin-slow" />
+                    <span className="font-bold">{transactions.length}</span>
+                    <span className="text-xs uppercase font-medium opacity-80">Pending</span>
                 </div>
             </div>
-        </main>
+
+            <div className="card overflow-hidden p-0 border-slate-700/50">
+                {loading && transactions.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500">Loading mempool...</div>
+                ) : transactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-20 text-center">
+                        <ArchiveBoxIcon className="w-16 h-16 text-slate-700 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-400">Mempool is Empty</h3>
+                        <p className="text-slate-500 text-sm mt-1">All transactions have been confirmed.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-900/50">
+                                <tr className="text-slate-500 text-xs font-medium uppercase tracking-wider border-b border-slate-700">
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Type</th>
+                                    <th className="px-6 py-4">Sender</th>
+                                    <th className="px-6 py-4">Nonce</th>
+                                    <th className="px-6 py-4 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {transactions.map((tx, i) => {
+                                    const amount = tx.data.NativeTransfer?.amount || 0;
+                                    const sender = toHex(tx.sender);
+
+                                    return (
+                                        <tr key={i} className="group hover:bg-slate-800/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <span className="px-2 py-1 rounded text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                                    Pending
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm text-slate-300">Native Transfer</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="font-mono text-sm text-blue-400 truncate max-w-[150px] block">
+                                                    {sender.substring(0, 16)}...
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-500">
+                                                {tx.nonce}
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-bold text-slate-200">
+                                                {amount} NCC
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }

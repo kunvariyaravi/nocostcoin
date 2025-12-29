@@ -1,221 +1,147 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+    CubeIcon,
+    HashtagIcon,
+    ClockIcon,
+    ArrowRightIcon,
+    MagnifyingGlassIcon
+} from '@heroicons/react/24/outline';
+import { toHex } from '@/utils/hex';
 
 interface Block {
     hash: string;
     header: {
         slot: number;
+        epoch: number;
         timestamp: number;
-        validator_pubkey: number[];
         parent_hash: string;
+        validator_pubkey: number[];
     };
     transactions: any[];
 }
 
-interface Transaction {
-    sender: string;
-    receiver: string;
-    amount: number;
-    nonce: number;
-    signature: number[];
-}
-
 export default function ExplorerPage() {
     const [blocks, setBlocks] = useState<Block[]>([]);
-    const [mempool, setMempool] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const router = useRouter();
+    const [search, setSearch] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [blocksRes, mempoolRes] = await Promise.all([
-                    fetch('/api/node/blocks?limit=10'),
-                    fetch('/api/node/mempool')
-                ]);
-
-                if (blocksRes.ok) {
-                    const blocksData = await blocksRes.json();
-                    setBlocks(blocksData);
-                }
-
-                if (mempoolRes.ok) {
-                    const mempoolData = await mempoolRes.json();
-                    setMempool(mempoolData);
-                }
-            } catch (error) {
-                console.error('Failed to fetch explorer data:', error);
-            } finally {
-                setLoading(false);
+    const fetchBlocks = async () => {
+        try {
+            // Fetch last 20 blocks
+            const res = await fetch('/api/node/blocks?limit=20');
+            if (res.ok) {
+                const data = await res.json();
+                setBlocks(data);
             }
-        };
-
-        fetchData();
-        const interval = setInterval(fetchData, 5000); // Auto-refresh every 5s
-        return () => clearInterval(interval);
-    }, []);
-
-    const handleSearch = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const query = searchQuery.trim();
-        if (!query) return;
-
-        // Try to identify type
-        if (query.length === 64) {
-            // 64 chars could be Block Hash, Tx Hash, or Address (hex version)
-            // Let's try to fetch as Tx first? Or let's assume if it fails one, try another.
-            // Best UX: Redirect to a search results page? 
-            // Simpler: Just blindly redirect to Transaction page if the user thinks it's a Tx, or Block if Block.
-            // Let's check if it exists as a block first via API?
-
-            try {
-                const blockRes = await fetch(`/api/node/block/${query}`);
-                if (blockRes.ok) {
-                    router.push(`/testnet/explorer/block/${query}`);
-                    return;
-                }
-
-                const txRes = await fetch(`/api/node/transaction/${query}`);
-                if (txRes.ok) {
-                    router.push(`/testnet/explorer/tx/${query}`);
-                    return;
-                }
-
-                // If neither, maybe address?
-                const accRes = await fetch(`/api/node/account/${query}`);
-                if (accRes.ok && accRes.status !== 404) {
-                    router.push(`/testnet/explorer/address/${query}`);
-                    return;
-                }
-
-            } catch (e) {
-                // ignore
-            }
-
-            // If all checks fail or network error, fallback to address if it looks like one purely by format?
-            // Or just show error?
-            alert("Could not find Block, Transaction, or Account with that hash/ID.");
-
-        } else {
-            alert("Please enter a valid 64-character Hex Hash or Address");
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
     };
 
+    useEffect(() => {
+        fetchBlocks();
+        const interval = setInterval(fetchBlocks, 3000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const filteredBlocks = blocks.filter(b =>
+        b.hash.toLowerCase().includes(search.toLowerCase()) ||
+        b.header.slot.toString().includes(search)
+    );
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gradient">Blockchain Explorer</h1>
-                    <p className="text-gray-500 mt-1">Real-time block and transaction insights</p>
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-violet-400">
+                        Block Explorer
+                    </h1>
+                    <p className="text-slate-400 mt-1">View real-time blocks and network activity.</p>
                 </div>
 
-                <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
+                <div className="relative w-full md:w-96">
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                     <input
                         type="text"
-                        placeholder="Search Hash / Address..."
-                        className="input w-full md:w-96 shadow-sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by Block Hash or Slot..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="input pl-10 bg-slate-900 border-slate-700 focus:border-blue-500"
                     />
-                    <button type="submit" className="btn-primary">
-                        Search
-                    </button>
-                </form>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Latest Blocks */}
-                <div className="card">
-                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
-                        <span className="p-2 bg-blue-100 text-blue-600 rounded-lg">📦</span> Latest Blocks
-                    </h2>
+            <div className="card overflow-hidden p-0 border-slate-700/50">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-900/50">
+                            <tr className="text-slate-500 text-xs font-medium uppercase tracking-wider border-b border-slate-700">
+                                <th className="px-6 py-4">Slot</th>
+                                <th className="px-6 py-4">Block Hash</th>
+                                <th className="px-6 py-4">Time</th>
+                                <th className="px-6 py-4">Transactions</th>
+                                <th className="px-6 py-4">Validator</th>
+                                <th className="px-6 py-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {loading && blocks.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">Loading blocks...</td>
+                                </tr>
+                            ) : filteredBlocks.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">No blocks found</td>
+                                </tr>
+                            ) : (
+                                filteredBlocks.map((block) => {
+                                    const timeAgo = Math.floor((Date.now() - block.header.timestamp) / 1000);
+                                    let timeString = `${timeAgo}s ago`;
+                                    if (timeAgo > 60) timeString = `${Math.floor(timeAgo / 60)}m ago`;
 
-                    {loading && blocks.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">Loading blocks...</div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-gray-100 text-gray-400 text-sm font-medium">
-                                        <th className="pb-3 pl-2">Height</th>
-                                        <th className="pb-3">Hash</th>
-                                        <th className="pb-3">Time</th>
-                                        <th className="pb-3 pr-2 text-right">Txs</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {blocks.map((block) => (
-                                        <tr key={block.hash} className="group hover:bg-gray-50 transition-colors">
-                                            <td className="py-4 pl-2">
-                                                <span className="bg-gray-100 text-gray-700 font-bold px-2 py-1 rounded text-sm">#{block.header.slot}</span>
+                                    const validator = toHex(block.header.validator_pubkey).substring(0, 8) + '...';
+
+                                    return (
+                                        <tr key={block.hash} className="group hover:bg-slate-800/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <CubeIcon className="w-4 h-4 text-blue-500" />
+                                                    <span className="font-bold text-blue-400">{block.header.slot}</span>
+                                                </div>
                                             </td>
-                                            <td className="py-4">
-                                                <Link href={`/testnet/explorer/block/${block.hash}`} className="text-primary-600 hover:text-primary-700 font-mono text-sm truncate block max-w-[120px]">
-                                                    {block.hash.substring(0, 8)}...
+                                            <td className="px-6 py-4">
+                                                <span className="font-mono text-sm text-slate-400">{block.hash.substring(0, 16)}...</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                                    <ClockIcon className="w-4 h-4" />
+                                                    {timeString}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${block.transactions.length > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                                                    {block.transactions.length} txs
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-400">
+                                                {validator}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <Link href={`/testnet/explorer/block/${block.hash}`} className="p-2 rounded hover:bg-slate-700 inline-block text-slate-500 hover:text-white transition-colors">
+                                                    <ArrowRightIcon className="w-5 h-5" />
                                                 </Link>
-                                            </td>
-                                            <td className="py-4 text-gray-500 text-sm">
-                                                {new Date(block.header.timestamp).toLocaleTimeString()}
-                                            </td>
-                                            <td className="py-4 pr-2 text-right text-gray-600 font-medium">
-                                                {block.transactions.length}
                                             </td>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                {/* Latest Transactions (Mempool) */}
-                <div className="card">
-                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
-                        <span className="p-2 bg-purple-100 text-purple-600 rounded-lg">⏳</span> Pending Transactions
-                    </h2>
-
-                    {loading && mempool.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">Loading mempool...</div>
-                    ) : mempool.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                            No pending transactions
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-gray-100 text-gray-400 text-sm font-medium">
-                                        <th className="pb-3 pl-2">From</th>
-                                        <th className="pb-3">To</th>
-                                        <th className="pb-3 pr-2 text-right">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {mempool.slice(0, 10).map((tx, i) => (
-                                        <tr key={i} className="group hover:bg-gray-50 transition-colors">
-                                            <td className="py-4 pl-2">
-                                                <Link href={`/testnet/explorer/address/${tx.sender}`} className="text-gray-600 hover:text-primary-600 font-mono text-sm truncate block max-w-[100px]">
-                                                    {tx.sender.substring(0, 6)}...
-                                                </Link>
-                                            </td>
-                                            <td className="py-4">
-                                                <Link href={`/testnet/explorer/address/${tx.receiver}`} className="text-gray-600 hover:text-primary-600 font-mono text-sm truncate block max-w-[100px]">
-                                                    {tx.receiver.substring(0, 6)}...
-                                                </Link>
-                                            </td>
-                                            <td className="py-4 pr-2 text-right text-emerald-600 font-bold">
-                                                {tx.amount}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

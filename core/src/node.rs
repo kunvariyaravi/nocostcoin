@@ -385,15 +385,10 @@ impl Node {
                     }
                 }
                 
-                // Skip block production if syncing
-                if sync_manager.is_syncing() {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                    continue;
-                }
                 
                 let current_slot = chain.consensus.get_current_slot();
                 
-                if current_slot > last_slot {
+                if !sync_manager.is_syncing() && current_slot > last_slot {
                     println!("Processing Slot: {}", current_slot);
                     last_slot = current_slot;
                     
@@ -579,11 +574,17 @@ impl Node {
                             
                             let nonce = chain.state.get_nonce(&my_address);
                             
+                            // Account for pending transactions in mempool
+                            let pending_nonce_offset = mempool.get_transactions_for_block(1000)
+                                .iter()
+                                .filter(|tx| tx.sender == my_address)
+                                .count() as u64;
+                            
                             let tx = crate::transaction::Transaction::new(
                                 my_address.clone(),
                                 receiver_bytes,
                                 crate::transaction::TransactionData::NativeTransfer { amount: req.amount },
-                                nonce,
+                                nonce + pending_nonce_offset,
                                 &keypair
                             );
                             

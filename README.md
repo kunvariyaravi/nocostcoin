@@ -2,15 +2,15 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/security-68%2F100-yellow.svg)](#security)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
 
-> A high-performance blockchain implementation featuring Proof of Determinism (PoD) consensus with VRF-based leader selection, built in Rust.
+> A high-performance blockchain implementation featuring Proof of Determinism (PoD) consensus with VRF-based leader selection, purpose-built for the AI economy.
 
 ## 🌟 Key Features
 
 ### Consensus Innovation
 - **Proof of Determinism (PoD)** - Deterministic leader schedule with VRF verification ([Read Whitepaper](WHITEPAPER.md))
-- **Consensus Innovation**
+- **Secret Leader Election** - Prevents targeted DDoS attacks
 - **Stake-Weighted Selection** - Validators weighted by stake amount
 - **Fallback Mechanism** - Backup validators ensure liveness (1-second delay)
 - **Chained Randomness** - Prevents VRF grinding attacks
@@ -21,6 +21,7 @@
 - 🔄 **100 transactions per block** - High throughput
 - 📦 **1000-transaction mempool** - Efficient queuing
 - 🌐 **P2P networking** - Decentralized via libp2p
+- 🚀 **Native primitives** - Assets, NFTs, and payments built-in
 
 ### Security
 - ✅ **VRF-based leader selection** - Cryptographically secure
@@ -29,88 +30,119 @@
 - ✅ **Signature verification** - All transactions validated
 - ✅ **Nonce tracking** - Replay attack prevention
 
-### Architecture
+### Modern Tech Stack
 - 🦀 **Written in Rust** - Memory-safe and performant
-- 🗄️ **Persistent storage** - Embedded sled database
+- 🗄️ **RocksDB storage** - Production-grade persistence
 - 🔗 **Merkle Patricia Trie** - Efficient state management
 - 🌍 **libp2p networking** - Gossipsub, Kademlia DHT, mDNS
+- ⚛️ **Next.js UI** - Modern React-based dashboard
+- 📊 **Prometheus metrics** - Real-time monitoring
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Rust 1.70+ ([Install Rust](https://rustup.rs/))
-- Windows/Linux/macOS
+- **Rust 1.70+** - [Install Rust](https://rustup.rs/)
+- **Node.js 18+** - [Install Node.js](https://nodejs.org/)
+- **LLVM/Clang** - Required for RocksDB (Windows users)
+
+#### Installing LLVM (Windows)
+```powershell
+winget install LLVM.LLVM
+```
 
 ### Installation
 
 ```bash
 git clone https://github.com/yourusername/nocostcoin.git
 cd nocostcoin
+```
+
+### Build the Project
+
+```powershell
+# Windows - Set LLVM path for RocksDB
+$env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+cd core
 cargo build --release
 ```
 
-### Launch Testnet (Automated)
+```bash
+# Linux/macOS
+cd core
+cargo build --release
+```
+
+### Launch Testnet
+
+See [TESTNET_LAUNCH.md](TESTNET_LAUNCH.md) for detailed instructions.
+
+**Quick 3-Node Local Network:**
 
 ```powershell
-# Windows
-.\launch_Testnet.ps1
-
-# Linux/macOS
-./launch_Testnet.sh
-```
-
-This launches a 3-node local network automatically!
-
-### Manual Launch
-
-**Node 1 (Bootstrap):**
-```bash
+# Terminal 1 - Bootstrap Node
+cd core
 cargo run --release -- --port 9000
+
+# Terminal 2 - Validator Node
+cargo run --release -- --port 9001 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+
+# Terminal 3 - Validator Node
+cargo run --release -- --port 9002 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+
+# Terminal 4 - UI
+cd ui
+npm install
+npm run dev
 ```
 
-**Node 2 (Validator):**
-```bash
-cargo run --release -- --port 9001 --bootstrap /ip4/127.0.0.1/tcp/9000
-```
+**Access Points:**
+- **UI Dashboard**: http://localhost:3000
+- **API Node 1**: http://localhost:8000
+- **API Node 2**: http://localhost:8001
+- **API Node 3**: http://localhost:8002
+- **Metrics**: http://localhost:9090-9092
 
-**Node 3 (Validator):**
-```bash
-cargo run --release -- --port 9002 --bootstrap /ip4/127.0.0.1/tcp/9000
-```
+## 📖 UI Features
 
-## 📖 Interactive Commands
+The Next.js dashboard provides:
 
-Once running, use these commands in any node terminal:
-
-| Command | Description |
-|---------|-------------|
-| `info` | Display node status, height, balance |
-| `sim` | Toggle automatic transaction generation |
-| `send random 100` | Send 100 tokens to random address |
-| `send <addr> <amt>` | Send tokens to specific address |
-| `help` | Show all commands |
+- 📊 **Dashboard** - Real-time network statistics
+- 💰 **Wallet** - Balance, address, transaction history
+- 🔍 **Explorer** - Browse blocks and transactions
+- 🌐 **Network** - Connected peers and status
+- 💧 **Faucet** - Request test tokens
+- 📝 **Mempool** - View pending transactions
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Nocostcoin Node                      │
+│                    Nocostcoin Stack                     │
 ├─────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│  │ Consensus│  │  Chain   │  │  State   │             │
-│  │   (PoD)  │◄─┤ Manager  │◄─┤  (MPT)   │             │
-│  └──────────┘  └──────────┘  └──────────┘             │
-│       ▲             ▲              ▲                    │
-│       │             │              │                    │
-│  ┌────┴─────────────┴──────────────┴────┐              │
-│  │         Network Layer (libp2p)       │              │
-│  │  Gossipsub │ Kademlia │ mDNS │ RPC  │              │
-│  └──────────────────────────────────────┘              │
-│       ▲                                                 │
-│       │                                                 │
-│  ┌────┴──────────────────────────────────┐             │
-│  │      Storage (sled embedded DB)       │             │
-│  └───────────────────────────────────────┘             │
+│  ┌──────────────────────────────────────────────┐      │
+│  │      Next.js UI (Port 3000)                  │      │
+│  │  Dashboard | Wallet | Explorer | Network     │      │
+│  └──────────────────┬───────────────────────────┘      │
+│                     │ REST API                          │
+│  ┌──────────────────┴───────────────────────────┐      │
+│  │         Blockchain Nodes (Ports 8000+)       │      │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐   │      │
+│  │  │ Consensus│  │  Chain   │  │  State   │   │      │
+│  │  │   (PoD)  │◄─┤ Manager  │◄─┤  (MPT)   │   │      │
+│  │  └──────────┘  └──────────┘  └──────────┘   │      │
+│  │       ▲             ▲              ▲          │      │
+│  │  ┌────┴─────────────┴──────────────┴────┐    │      │
+│  │  │    Network Layer (libp2p)            │    │      │
+│  │  │  Gossipsub │ Kademlia │ mDNS │ RPC  │    │      │
+│  │  └──────────────────────────────────────┘    │      │
+│  │  ┌──────────────────────────────────────┐    │      │
+│  │  │      Storage (RocksDB)               │    │      │
+│  │  └──────────────────────────────────────┘    │      │
+│  └──────────────────────────────────────────────┘      │
+│                                                          │
+│  ┌──────────────────────────────────────────────┐      │
+│  │   Prometheus Metrics (Ports 9090+)           │      │
+│  └──────────────────────────────────────────────┘      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -126,6 +158,7 @@ Once running, use these commands in any node terminal:
 ✅ Chained randomness (VRF grinding prevention)  
 ✅ Signature verification on all transactions  
 ✅ Nonce-based replay protection  
+✅ Faucet rate limiting (24-hour cooldown)
 
 ### Production Roadmap
 - [ ] Transaction fees and gas mechanism
@@ -171,24 +204,34 @@ cargo test chain::tests
 
 ## 📁 Project Structure
 
-
 ```
 nocostcoin/
-├── core/                 # Rust Blockchain Core
-│   ├── src/              # Source code
-│   ├── Cargo.toml        # Rust dependencies
-│   └── ...
-├── ui/                   # Next.js Website (formerly website/)
-│   ├── src/              # UI Source code
-│   ├── package.json      # JS dependencies
-│   └── ...
-├── launch_Testnet.ps1     # Automated Testnet launcher
-├── launch_Testnet.sh      # Launcher for Linux/macOS
-└── README.md             # This file
+├── core/                    # Rust Blockchain Core
+│   ├── src/
+│   │   ├── main.rs         # Node entry point
+│   │   ├── consensus.rs    # PoD consensus
+│   │   ├── chain.rs        # Block management
+│   │   ├── state.rs        # State machine
+│   │   ├── storage.rs      # RocksDB interface
+│   │   ├── network.rs      # P2P networking
+│   │   └── api.rs          # REST API
+│   └── Cargo.toml          # Dependencies
+├── ui/                      # Next.js UI
+│   ├── src/
+│   │   ├── app/            # Pages
+│   │   ├── components/     # React components
+│   │   └── utils/          # Helper functions
+│   └── package.json        # JS dependencies
+├── config/                  # Node configurations
+├── docs/                    # Documentation
+├── WHITEPAPER.md           # Technical whitepaper
+├── TESTNET_LAUNCH.md       # Launch instructions
+└── README.md               # This file
 ```
 
 ## 🎯 Use Cases
 
+- **AI Economy**: Native primitives for autonomous agents
 - **Research**: Study deterministic consensus mechanisms
 - **Education**: Learn blockchain development in Rust
 - **Testing**: Experiment with VRF-based leader selection
@@ -196,11 +239,14 @@ nocostcoin/
 
 ## 🤝 Contributing
 
-Contributions welcome! Areas of interest:
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Areas of interest:
 - Transaction fee mechanisms
 - Network optimizations
 - Finality improvements
 - Additional test coverage
+- UI/UX enhancements
 - Documentation
 
 ## 📜 License
@@ -212,8 +258,10 @@ MIT License - see [LICENSE](LICENSE) file
 Built with:
 - [schnorrkel](https://github.com/w3f/schnorrkel) - VRF implementation
 - [libp2p](https://libp2p.io/) - P2P networking
-- [sled](https://github.com/spacejam/sled) - Embedded database
+- [RocksDB](https://rocksdb.org/) - Embedded database
 - [tokio](https://tokio.rs/) - Async runtime
+- [Next.js](https://nextjs.org/) - React framework
+- [TailwindCSS](https://tailwindcss.com/) - UI styling
 
 ## 📞 Contact
 
@@ -224,5 +272,4 @@ Built with:
 
 **⚠️ Disclaimer**: This is experimental software. Not recommended for production use without additional security hardening.
 
-**Built with ❤️ in Rust**
-
+**Built with ❤️ in Rust + TypeScript**

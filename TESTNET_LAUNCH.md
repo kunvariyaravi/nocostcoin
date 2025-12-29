@@ -1,184 +1,324 @@
 # Nocostcoin Testnet Launch Guide
 
-## Quick Start
+Complete instructions for running a 3-node local testnet with the Next.js UI.
 
-### 1. Build the Project
+---
+
+## Prerequisites
+
+### Required Software
+
+**All Platforms:**
+- Rust 1.70+ ([Install](https://rustup.rs/))
+- Node.js 18+ ([Install](https://nodejs.org/))
+
+**Windows Only:**
+- LLVM/Clang (Required for RocksDB compilation)
+
+### Installing LLVM on Windows
+
+RocksDB requires LLVM for compilation on Windows. Install it with:
+
 ```powershell
-cargo build --release
+winget install LLVM.LLVM
 ```
 
-### 2. Launch Multi-Node Testnet
+Or download manually from: https://releases.llvm.org/download.html
 
-**Terminal 1 - Bootstrap Node (Port 9000):**
+**Verify Installation:**
 ```powershell
+Test-Path "C:\Program Files\LLVM\bin\libclang.dll"
+# Should return: True
+```
+
+---
+
+## Quick Start
+
+### 1. Clone and Build
+
+```bash
+git clone https://github.com/yourusername/nocostcoin.git
+cd nocostcoin
+```
+
+**Windows:**
+```powershell
+# Set LLVM path for RocksDB
+$env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+
+# Build core
+cd core
+cargo build --release
+cd ..
+
+# Build UI
+cd ui
+npm install
+cd ..
+```
+
+**Linux/macOS:**
+```bash
+# Build core
+cd core
+cargo build --release
+cd ..
+
+# Build UI
+cd ui
+npm install
+cd ..
+```
+
+---
+
+## Launch the Testnet
+
+You'll need **4 terminal windows**: 3 for blockchain nodes and 1 for the UI.
+
+### Terminal 1: Bootstrap Node (Port 9000)
+
+**Windows:**
+```powershell
+$env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+cd core
 cargo run --release -- --port 9000
 ```
 
-**Terminal 2 - Validator Node (Port 9001):**
-```powershell
-cargo run --release -- --port 9001 --bootstrap /ip4/127.0.0.1/tcp/9000
+**Linux/macOS:**
+```bash
+cd core
+cargo run --release -- --port 9000
 ```
 
-**Terminal 3 - Validator Node (Port 9002):**
-```powershell
-cargo run --release -- --port 9002 --bootstrap /ip4/127.0.0.1/tcp/9000
+**Expected Output:**
+```
+Config file not found, using default Devnet config for port 9000
+API server starting on http://0.0.0.0:8000
+Metrics exporter listening on port 9090
+Processing Slot: 1
+🎰 Won Secret Leader Election for slot 1
+Produced and added block for slot 1: abc123... with 0 txs
 ```
 
-## Node Configuration
+### Terminal 2: Validator Node (Port 9001)
 
-### Command-Line Options
-- `--port <PORT>` - Set the listening port (default: 9000)
-- `--bootstrap <MULTIADDR>` - Connect to a bootstrap node
+**Windows:**
+```powershell
+$env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+cd core
+cargo run --release -- --port 9001 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+```
 
-### Example Multi-Address Formats
+**Linux/macOS:**
+```bash
+cd core
+cargo run --release -- --port 9001 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+```
+
+**Expected Output:**
+```
+Peer connected: 12D3KooW... Requesting chain info...
+Peer 12D3KooW... has height 5
+Syncing...
+✓ Accepted block from network for slot 6
+```
+
+### Terminal 3: Validator Node (Port 9002)
+
+**Windows:**
+```powershell
+$env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+cd core
+cargo run --release -- --port 9002 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+```
+
+**Linux/macOS:**
+```bash
+cd core
+cargo run --release -- --port 9002 --bootstrap "/ip4/127.0.0.1/tcp/9000"
+```
+
+### Terminal 4: UI Dashboard
+
+```bash
+cd ui
+npm run dev
+```
+
+**Access the UI at:** http://localhost:3000
+
+---
+
+## Testnet Access Points
+
+Once all nodes and the UI are running:
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **UI Dashboard** | http://localhost:3000 | Web interface |
+| **Explorer** | http://localhost:3000/testnet/explorer | Block explorer |
+| **Wallet** | http://localhost:3000/testnet/wallet | Your wallet |
+| **Network** | http://localhost:3000/testnet/network | Peer status |
+| **Mempool** | http://localhost:3000/testnet/mempool | Pending txs |
+| **API - Node 1** | http://localhost:8000 | REST API |
+| **API - Node 2** | http://localhost:8001 | REST API |
+| **API - Node 3** | http://localhost:8002 | REST API |
+| **Metrics - Node 1** | http://localhost:9090/metrics | Prometheus |
+| **Metrics - Node 2** | http://localhost:9091/metrics | Prometheus |
+| **Metrics - Node 3** | http://localhost:9092/metrics | Prometheus |
+
+---
+
+## Using the UI
+
+### 1. Dashboard
+- View real-time network statistics
+- See latest blocks
+- Monitor validator status
+- Send/receive tokens
+- Use the faucet to get test tokens
+
+### 2. Wallet
+- Your address is auto-generated on first visit
+- Check balance and transaction history
+- Copy your address
+- View incoming/outgoing transactions
+
+### 3. Explorer
+- Browse all blocks
+- Click on any block to see details
+- View transactions in blocks
+- Search by block hash or slot number
+
+### 4. Faucet
+- Click "Request 1,000 NCC" on the Dashboard
+- Rate limited to once per 24 hours per address
+- Instant distribution when available
+
+---
+
+## Command-Line Options
+
+### Core Node Arguments
+
+```bash
+cargo run --release -- [OPTIONS]
+```
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--port <PORT>` | P2P listening port | `--port 9000` |
+| `--bootstrap <ADDR>` | Bootstrap peer address | `--bootstrap "/ip4/127.0.0.1/tcp/9000"` |
+| `--mining <BOOL>` | Enable/disable mining | `--mining false` |
+| `--config <PATH>` | Config file path | `--config config/node1.toml` |
+
+### Bootstrap Address Format
+
+```
+/ip4/<IP>/tcp/<PORT>
+```
+
+**Examples:**
 - Local: `/ip4/127.0.0.1/tcp/9000`
-- Remote: `/ip4/192.168.1.100/tcp/9000`
+- LAN: `/ip4/192.168.1.100/tcp/9000`
+- Public: `/ip4/203.0.113.10/tcp/9000`
 
-## Interactive Commands
+---
 
-Once a node is running, you can use these commands:
-
-| Command | Description |
-|---------|-------------|
-| `info` | Display node status (height, balance, mempool, etc.) |
-| `help` | Show available commands |
-| `sim` | Toggle automatic transaction generation |
-| `send <address> <amount>` | Send tokens to an address |
-| `send random <amount>` | Send tokens to a random address |
-
-### Example Usage
-```
-info                                    # Check node status
-sim                                     # Enable auto-transactions
-send random 100                         # Send 100 tokens to random address
-send a1b2c3... 50                      # Send 50 tokens to specific address
-```
-
-## Testnet Features
+## Network Configuration
 
 ### Automatic Setup
-- ✅ **Genesis Block**: Created automatically on first run
-- ✅ **Wallet**: Generated and saved per node (`wallet_<port>.key`)
-- ✅ **Database**: Separate DB per node (`nocostcoin_db_<port>`)
-- ✅ **Initial Balance**: Each node starts with 1,000,000 tokens
-- ✅ **Validator Registration**: Nodes auto-register as validators
+Each node automatically:
+- ✅ Creates a genesis block (if first node)
+- ✅ Generates and saves a wallet keypair
+- ✅ Sets up a RocksDB database
+- ✅ Initializes with 1,000,000 NCC balance
+- ✅ Registers as a validator with full stake
 
-### Network Features
-- **Peer Discovery**: Automatic via mDNS (local network)
-- **Gossipsub**: Block and transaction propagation
-- **Kademlia DHT**: Decentralized peer routing
-- **Chain Sync**: Automatic synchronization with peers
+### Data Storage
 
-### Consensus
+**Per-Node Files:**
+- `nocostcoin_db_<port>/` - RocksDB database
+- `wallet_<port>.key` - Private key (keep secret!)
+- `config/nocostcoin.toml` - Configuration (optional)
+
+### Consensus Parameters
+
 - **Slot Duration**: 2 seconds
+- **Block Time**: ~2 seconds average
 - **Epoch Duration**: 1 hour (1800 slots)
-- **Leader Selection**: Deterministic round-robin with VRF
-- **Fallback**: Backup validators (1 second delay)
-- **Minimum Stake**: 0.1% of total stake required
+- **Transactions per Block**: Up to 100
+- **Mempool Size**: 1,000 transactions
+- **Fallback Delay**: 1 second
+- **Min Validator Stake**: 0.1% of total stake (1,000 NCC minimum)
+
+---
 
 ## Monitoring Your Testnet
 
-### Check Node Status
-```powershell
-.\check_nodes.ps1
+### Success Indicators
+
+Look for these in the node terminals:
+
+```
+✅ Peer connected: <PeerID>
+✅ Processing Slot: <N>
+✅ 🎰 Won Secret Leader Election for slot <N>
+✅ Produced and added block for slot <N>
+✅ Received block from network
+✅ ✓ Accepted block from network for slot <N>
 ```
 
-This shows:
-- Running processes
-- Listening ports
-- Quick status overview
+### Health Checks
 
-### Monitor Performance
+**Check API:**
 ```powershell
-.\monitor_performance.ps1
+# Node status
+curl http://localhost:8000/stats
+
+# Chain info
+curl http://localhost:8000/chain
+
+# Peer list
+curl http://localhost:8000/peers
 ```
 
-This displays:
-- Block production rate
-- Transaction throughput
-- Network activity
-
-### What to Look For
-
-**Successful Testnet Indicators:**
-1. ✅ "Peer connected" messages between nodes
-2. ✅ "Processing Slot" messages every 2 seconds
-3. ✅ "Produced and added block" messages
-4. ✅ "Received block from network" messages
-5. ✅ Chain height increasing on all nodes
-
-**Common Issues:**
-- ⚠️ "Failed to add block" - Check VRF threshold or validator registration
-- ⚠️ "Rejected received block" - Check consensus validation
-- ⚠️ No peer connections - Check bootstrap address
-
-## Testnet Scenarios
-
-### Scenario 1: Testing Block Production
+**Check Metrics:**
 ```powershell
-# Terminal 1
-cargo run --release -- --port 9000
-
-# Wait for blocks to be produced
-# Type: info
-# You should see height increasing
+curl http://localhost:9090/metrics | Select-String "block_height"
 ```
 
-### Scenario 2: Multi-Node Network
-```powershell
-# Terminal 1 (Bootstrap)
-cargo run --release -- --port 9000
+---
 
-# Terminal 2 (Peer)
-cargo run --release -- --port 9001 --bootstrap /ip4/127.0.0.1/tcp/9000
+## Common Issues & Solutions
 
-# Terminal 3 (Peer)
-cargo run --release -- --port 9002 --bootstrap /ip4/127.0.0.1/tcp/9000
+### Issue: "LLVM not found" (Windows)
 
-# All nodes should sync and produce blocks in round-robin
+**Symptoms:**
+```
+Unable to find libclang: couldn't find any valid shared libraries
 ```
 
-### Scenario 3: Transaction Testing
-```powershell
-# In any node terminal:
-sim                    # Enable auto-transactions
-info                   # Check mempool size
-# Watch blocks include transactions
+**Solution:**
+1. Install LLVM: `winget install LLVM.LLVM`
+2. Set environment variable:
+   ```powershell
+   $env:LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+   ```
+3. Rebuild: `cargo clean && cargo build --release`
+
+### Issue: "Port already in use"
+
+**Symptoms:**
+```
+Error: Address already in use
 ```
 
-### Scenario 4: Chain Synchronization
-```powershell
-# Start node 1, let it produce blocks
-cargo run --release -- --port 9000
+**Solution:**
 
-# Wait 30 seconds, then start node 2
-cargo run --release -- --port 9001 --bootstrap /ip4/127.0.0.1/tcp/9000
-
-# Node 2 should sync all blocks from node 1
-# Look for "Sync started", "Sync progress", "Sync completed" messages
-```
-
-## Testnet Configuration
-
-### Genesis Parameters
-- **Genesis Time**: Set to current time on first launch
-- **Initial Supply**: 1,000,000 tokens per node
-- **Validator Stake**: 1,000,000 (100% of initial balance)
-
-### Network Parameters
-- **Mempool Size**: 1,000 transactions
-- **Block Size**: 100 transactions per block
-- **Sync Batch**: 100 blocks per request
-
-### Consensus Parameters
-- **Slot Duration**: 2000ms (2 seconds)
-- **Slots Per Epoch**: 1800 (1 hour)
-- **Fallback Delay**: 1000ms (1 second)
-- **Min Stake Ratio**: 0.001 (0.1%)
-
-## Troubleshooting
-
-### Port Already in Use
+**Windows:**
 ```powershell
 # Find process using port
 Get-NetTCPConnection -LocalPort 9000
@@ -187,64 +327,307 @@ Get-NetTCPConnection -LocalPort 9000
 Stop-Process -Id <PID>
 ```
 
-### Reset Testnet
+**Linux/macOS:**
+```bash
+lsof -ti:9000 | xargs kill -9
+```
+
+### Issue: Nodes not connecting
+
+**Symptoms:**
+- No "Peer connected" messages
+- Chain height not increasing on peer nodes
+
+**Solutions:**
+1. **Check bootstrap address**: Ensure it matches the first node's IP and port
+2. **Verify network**: Make sure nodes can reach each other (firewall/NAT)
+3. **Check logs**: Look for connection errors in terminal output
+
+### Issue: "Failed to add block"
+
+**Symptoms:**
+```
+Failed to add block: VRF threshold not met
+```
+
+**Solutions:**
+- This is normal! Not every validator wins every slot
+- If persistent, check validator stake meets minimum (0.1%)
+
+### Issue: UI not loading data
+
+**Symptoms:**
+- Dashboard shows "Loading..."
+- Explorer is empty
+
+**Solutions:**
+1. **Check API is running**: Visit http://localhost:8000/stats
+2. **Check CORS**: API should allow localhost:3000
+3. **Clear browser cache**: Hard refresh (Ctrl+F5)
+4. **Check browser console**: Look for fetch errors
+
+---
+
+## Resetting the Testnet
+
+### Complete Reset
+
+Stop all nodes and UI (Ctrl+C), then:
+
+**Windows:**
 ```powershell
-# Stop all nodes (Ctrl+C in each terminal)
+# Delete all databases
+Remove-Item -Recurse -Force nocostcoin_db_*
 
-# Delete databases
-Remove-Item -Recurse nocostcoin_db_*
-
-# Delete wallets (optional - creates new validators)
+# Delete all wallets (creates new validators)
 Remove-Item wallet_*.key
 
-# Restart nodes
+# Restart nodes from scratch
 ```
 
-### Database Corruption
+**Linux/macOS:**
+```bash
+rm -rf nocostcoin_db_*
+rm wallet_*.key
+```
+
+### Single Node Reset
+
 ```powershell
-# Stop node
-# Delete specific database
-Remove-Item -Recurse nocostcoin_db_9000
+# Stop the node (Ctrl+C)
 
-# Restart node (will resync from peers)
+# Delete only that node's database
+Remove-Item -Recurse -Force nocostcoin_db_9001
+
+# Restart the node (will resync from peers)
 ```
 
-## Production Considerations
+---
 
-Before moving to production, implement:
+## Testing Scenarios
 
-1. **Transaction Fees** - Prevent spam (currently disabled per your request)
-2. **Rate Limiting** - Network DoS protection
-3. **Block Size Limits** - Prevent large block attacks
-4. **Finality Mechanism** - Prevent long-range attacks
-5. **Peer Reputation** - Ban malicious peers
-6. **Time Synchronization** - NTP integration
-7. **Monitoring & Metrics** - Prometheus/Grafana
-8. **Backup & Recovery** - Database snapshots
+### Scenario 1: Basic Block Production
 
-## Current Security Status
+```powershell
+# Launch single node
+cargo run --release -- --port 9000
 
-**Security Rating**: 68/100 (after VRF threshold fix)
+# Watch terminal for:
+# - "Processing Slot" every 2 seconds
+# - "Produced and added block" periodically
+#
+# Check UI:
+# - Dashboard shows increasing block height
+# - Explorer displays blocks
+```
 
-**Safe for Testnet**: ✅ Yes  
-**Production Ready**: ❌ No
+### Scenario 2: Multi-Node Consensus
 
-**Known Limitations**:
-- No transaction fees (spam possible)
-- No rate limiting (DoS possible)
-- No block size limits
-- System time dependency
-- No finality mechanism
+```powershell
+# Launch 3 nodes as described above
 
-These are acceptable for Testnet testing but must be addressed for production.
+# All terminals should show:
+# - Peer connection messages
+# - Block production from different nodes
+# - "Received block from network" messages
+#
+# Check UI:
+# - Network page shows 2 connected peers
+# - Explorer shows blocks from multiple validators
+```
+
+### Scenario 3: Faucet Test
+
+```powershell
+# Launch testnet
+# Open UI at localhost:3000
+
+# Steps:
+# 1. Go to Dashboard
+# 2. Click "Request 1,000 NCC"
+# 3. Wait ~2 seconds for next block
+# 4. Balance should increase by 1,000 NCC
+#
+# Try requesting again:
+# - Should show "Please wait 24 hours" message
+```
+
+### Scenario 4: Transaction Test
+
+```powershell
+# In UI Wallet page:
+# 1. Copy your address
+# 2. Go to Dashboard
+# 3. Send NCC to yourself
+# 4. Check Wallet page for tx history
+# 5. Check Explorer for the transaction
+```
+
+### Scenario 5: Node Failure Recovery
+
+```powershell
+# Start all 3 nodes
+# Stop node on port 9001 (Ctrl+C)
+# Observe:
+# - Other nodes continue producing blocks
+# - Network adapts to 2 validators
+#
+# Restart node 9001:
+# - It should sync missing blocks
+# - Resume normal operation
+```
+
+---
+
+## Production Checklist
+
+Before considering mainnet deployment, implement:
+
+- [ ] **Transaction Fees** - Spam prevention
+- [ ] **Rate Limiting** - DoS protection
+- [ ] **Block Size Limits** - Resource management
+- [ ] **Finality Mechanism** - BFT checkpointing
+- [ ] **Peer Reputation** - Ban malicious nodes
+- [ ] **Time Synchronization** - NTP integration
+- [ ] **Monitoring & Alerting** - Grafana dashboards
+- [ ] **Backup & Recovery** - Database snapshots
+- [ ] **Security Audit** - Third-party review
+- [ ] **Load Testing** - Performance under stress
+
+---
+
+## API Reference
+
+### GET /stats
+Returns node statistics.
+
+**Response:**
+```json
+{
+  "chain_height": 1234,
+  "mempool_size": 5,
+  "peer_count": 2,
+  "address": "02abc123...",
+  "balance": 1000000,
+  "is_mining": true
+}
+```
+
+### GET /chain
+Returns chain information.
+
+**Response:**
+```json
+{
+  "height": 1234,
+  "head_hash": "abc123...",
+  "total_supply": 3000000
+}
+```
+
+### POST /faucet
+Request test tokens.
+
+**Body:**
+```json
+{
+  "address": "02abc123..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tx_hash": "def456...",
+  "amount": 1000
+}
+```
+
+### GET /account/:address
+Get account information.
+
+**Response:**
+```json
+{
+  "balance": 5000,
+  "nonce": 3,
+  "stake": 1000000
+}
+```
+
+### GET /blocks?limit=20
+Get recent blocks.
+
+**Response:**
+```json
+[
+  {
+    "hash": "abc123...",
+    "header": {
+      "slot": 100,
+      "epoch": 0,
+      "timestamp": 1703001234,
+      "validator_pubkey": [...]
+    },
+    "transactions": []
+  }
+]
+```
+
+For full API documentation, see the Swagger UI at http://localhost:8000/docs (coming soon).
+
+---
 
 ## Support
 
-For issues or questions:
-1. Check the logs in each terminal
-2. Run `.\check_nodes.ps1` for status
-3. Use `info` command in node terminal
-4. Review this guide's troubleshooting section
+### Getting Help
+
+1. **Check Logs**: Look for error messages in terminal output
+2. **Review This Guide**: Most issues are covered in "Common Issues"
+3. **GitHub Issues**: [Report bugs](https://github.com/yourusername/nocostcoin/issues)
+4. **Discussions**: [Ask questions](https://github.com/yourusername/nocostcoin/discussions)
+
+### Useful Commands
+
+**Windows:**
+```powershell
+# Show running node processes
+Get-Process | Where-Object {$_.ProcessName -like "*nocostcoin*"}
+
+# Show ports in use
+Get-NetTCPConnection | Where-Object {$_.LocalPort -ge 8000 -and $_.LocalPort -le 9100}
+
+# View logs (if redirected)
+Get-Content -Tail 50 -Wait node.log
+```
+
+**Linux/macOS:**
+```bash
+# Show running node processes
+ps aux | grep nocostcoin
+
+# Show ports in use
+netstat -tuln | grep -E "8000|9000|9090"
+
+# View logs
+tail -f node.log
+```
+
+---
+
+## Next Steps
+
+Once your testnet is running smoothly:
+
+1. **Explore the UI** - Test all features
+2. **Read the Whitepaper** - Understand the consensus
+3. **Review the Code** - Learn the implementation
+4. **Build a dApp** - Create something on Nocostcoin
+5. **Contribute** - Improve the project
 
 Happy testing! 🚀
 
+---
+
+**Status**: ✅ Safe for Testnet | ⚠️ Not production-ready
