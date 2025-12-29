@@ -1,9 +1,12 @@
 # Rust
 target/
 **/*.rs.bk
+Cargo.lock
 
-# Keys/Secrets
-core/nocostcoin_db*
+# Database & Keys
+nocostcoin_db*/
+wallet_*.key
+core/nocostcoin_db*/
 core/wallet_*.key
 .env
 .env*.local
@@ -14,10 +17,20 @@ core/wallet_*.key
 # OS
 **/.DS_Store
 
-# Scripts
-*.ps1
-!launch_devnet.ps1
+# Node.js
+node_modules/
+.next/
+out/
+build/
+dist/
 
 # IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.nyc_output
+coverage/
