@@ -135,10 +135,10 @@ export default function TestnetDashboard() {
                 <div className="p-4 rounded-full bg-red-500/10 text-red-500">
                     <BoltIcon className="w-12 h-12" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-200">Cannot Connect to Node</h2>
-                <div className="p-4 bg-slate-900 rounded-lg font-mono text-sm text-slate-500 border border-slate-800">
-                    Check if port 8000/9000 is active
-                </div>
+                <h2 className="text-xl font-bold text-slate-200">Node Connection Failed</h2>
+                <p className="text-slate-400 mt-2">
+                    Unable to connect to the Nocostcoin network. Please try again in a moment.
+                </p>
             </div>
         );
     }
