@@ -1,13 +1,22 @@
 "use client";
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import NetworkStatus from './NetworkStatus';
 
 export default function WebsiteNavbar() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
     const pathname = usePathname();
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 20);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     const toggleMenu = () => {
         setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -21,7 +30,8 @@ export default function WebsiteNavbar() {
 
     return (
         <>
-            <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-gray-200">
+            <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-slate-950/80 backdrop-blur-md shadow-lg border-b border-slate-800' : 'bg-transparent border-transparent'
+                }`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex items-center space-x-4">
@@ -34,13 +44,13 @@ export default function WebsiteNavbar() {
                         </div>
 
                         <div className="hidden md:flex items-center space-x-8">
-                            <Link href="/about" className={`${isActive('/about')} hover:text-primary-600 transition-colors`}>
+                            <Link href="/about" className={`${isActive('/about') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
                                 About
                             </Link>
-                            <Link href="/whitepaper" className={`${isActive('/whitepaper')} hover:text-primary-600 transition-colors`}>
+                            <Link href="/whitepaper" className={`${isActive('/whitepaper') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
                                 Whitepaper
                             </Link>
-                            <Link href="/contact" className={`${isActive('/contact')} hover:text-primary-600 transition-colors`}>
+                            <Link href="/contact" className={`${isActive('/contact') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
                                 Contact
                             </Link>
                             <Link href="/testnet" className="btn-primary">

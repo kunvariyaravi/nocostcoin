@@ -31,21 +31,21 @@ const features = [
 
 export default function Features() {
     return (
-        <section className="py-20 bg-white">
+        <section className="py-20 bg-transparent">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="text-center mb-16">
-                    <h2 className="text-4xl font-bold text-gray-900 mb-4">Engineered for Perfection</h2>
-                    <p className="text-xl text-gray-600">Built from first principles to solve the trilemma.</p>
+                    <h2 className="text-4xl font-bold text-white mb-4">Engineered for Perfection</h2>
+                    <p className="text-xl text-slate-400">Built from first principles to solve the trilemma.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {features.map((feature, index) => (
                         <div key={index} className="card text-center group hover:scale-105 transition-transform duration-300">
-                            <div className="text-primary-600 mb-4 flex justify-center group-hover:scale-110 transition-transform">
+                            <div className="text-primary-500 mb-4 flex justify-center group-hover:scale-110 transition-transform">
                                 {feature.icon}
                             </div>
-                            <h3 className="text-2xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
-                            <p className="text-gray-600">{feature.description}</p>
+                            <h3 className="text-2xl font-semibold text-white mb-3">{feature.title}</h3>
+                            <p className="text-slate-400">{feature.description}</p>
                         </div>
                     ))}
                 </div>

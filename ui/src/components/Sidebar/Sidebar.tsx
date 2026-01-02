@@ -48,7 +48,7 @@ export default function Sidebar() {
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
                     <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                        Noconet
+                        Nocostcoin
                     </span>
                 </Link>
                 <div className="mt-2 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded text-xs font-medium text-blue-400 w-fit">
@@ -65,8 +65,8 @@ export default function Sidebar() {
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
                                 }`}
                         >
                             <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
