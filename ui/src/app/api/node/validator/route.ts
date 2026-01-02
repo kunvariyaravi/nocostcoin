@@ -2,10 +2,20 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const address = searchParams.get('address');
+
         const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const response = await fetch(`${backendUrl}/validator`);
+
+        // Build URL with optional address parameter
+        let url = `${backendUrl}/validator`;
+        if (address) {
+            url += `?address=${encodeURIComponent(address)}`;
+        }
+
+        const response = await fetch(url);
 
         if (!response.ok) {
             // If the endpoint returns 404, it means the user is not a validator

@@ -21,7 +21,7 @@ pub enum ApiCommand {
     GetTransaction(String, oneshot::Sender<Option<TransactionResponse>>),
     GetAddressHistory(String, usize, oneshot::Sender<Vec<TransactionResponse>>),
     GetValidators(oneshot::Sender<Vec<ValidatorStatusResponse>>),
-    GetValidatorStatus(oneshot::Sender<Option<ValidatorStatusResponse>>),
+    GetValidatorStatus(Option<String>, oneshot::Sender<Option<ValidatorStatusResponse>>),
     RegisterValidator(u64, oneshot::Sender<Result<String, String>>),
     GetConsensusState(oneshot::Sender<ConsensusStateResponse>),
     Faucet(FaucetRequest, oneshot::Sender<Result<FaucetResponse, String>>),
@@ -214,9 +214,10 @@ pub fn start_api_server(
         .and(cmd_tx_filter.clone())
         .and_then(handle_recover_wallet);
 
-    // GET /validator
+    // GET /validator?address=...
     let validator_route = warp::path!("validator")
         .and(warp::get())
+        .and(warp::query::<std::collections::HashMap<String, String>>())
         .and(cmd_tx_filter.clone())
         .and_then(handle_get_validator_status);
 
@@ -621,11 +622,15 @@ async fn handle_recover_wallet(
 }
 
 async fn handle_get_validator_status(
+    query: std::collections::HashMap<String, String>,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let (tx, rx) = oneshot::channel();
     
-    if cmd_tx.send(ApiCommand::GetValidatorStatus(tx)).is_err() {
+    // Extract address from query parameters (optional)
+    let address = query.get("address").map(|s| s.to_string());
+    
+    if cmd_tx.send(ApiCommand::GetValidatorStatus(address, tx)).is_err() {
         return Ok(warp::reply::with_status(
             warp::reply::json(&"Internal Server Error"),
             warp::http::StatusCode::INTERNAL_SERVER_ERROR,

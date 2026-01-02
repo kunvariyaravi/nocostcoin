@@ -658,10 +658,30 @@ impl Node {
                                 }
                             }
                         }
-                        crate::api::ApiCommand::GetValidatorStatus(respond_to) => {
-                            let validator = chain.validators.get_validator(&my_address);
+                        crate::api::ApiCommand::GetValidatorStatus(address_opt, respond_to) => {
+                            // If an address is specified, check that address's validator status
+                            // Otherwise, return the node's own validator status
+                            let check_address = if let Some(addr_hex) = address_opt {
+                                // Try to decode the hex address
+                                match hex::decode(&addr_hex) {
+                                    Ok(decoded) if decoded.len() == 32 => {
+                                        let mut arr = [0u8; 32];
+                                        arr.copy_from_slice(&decoded);
+                                        arr
+                                    }
+                                    _ => {
+                                        // Invalid address format, return None
+                                        let _ = respond_to.send(None);
+                                        continue;
+                                    }
+                                }
+                            } else {
+                                my_address
+                            };
+                            
+                            let validator = chain.validators.get_validator(&check_address);
                             let response = validator.map(|v| crate::api::ValidatorStatusResponse {
-                                pubkey: hex::encode(&my_address),
+                                pubkey: hex::encode(&check_address),
                                 stake: v.stake,
                                 is_active: v.stake > 0, // Simplified check
                                 last_voted_slot: 0, // TODO: Track last voted slot in Validator struct or locally here

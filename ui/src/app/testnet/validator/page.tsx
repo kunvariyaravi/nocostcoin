@@ -23,7 +23,26 @@ export default function ValidatorPage() {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch('/api/node/validator');
+            // Get the connected wallet address from localStorage
+            const wallet = localStorage.getItem('wallet');
+            let walletAddress = null;
+
+            if (wallet) {
+                try {
+                    const walletData = JSON.parse(wallet);
+                    walletAddress = walletData.address;
+                } catch (e) {
+                    console.error('Failed to parse wallet data:', e);
+                }
+            }
+
+            // Build API URL with address parameter if wallet is connected
+            let apiUrl = '/api/node/validator';
+            if (walletAddress) {
+                apiUrl += `?address=${encodeURIComponent(walletAddress)}`;
+            }
+
+            const res = await fetch(apiUrl);
             if (res.ok) {
                 const data = await res.json();
                 setStatus(data);
