@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Lexend } from "next/font/google";
-import Footer from "@/components/Footer/Footer";
 import "./globals.css";
 import Script from "next/script";
 
@@ -44,9 +43,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body className={lexend.variable}>
-
         {children}
-        <Footer />
       </body>
     </html>
   );
