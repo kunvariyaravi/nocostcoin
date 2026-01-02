@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data/node-1:/usr/local/bin/data
       - ./config:/usr/local/bin/config
-    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9000", "--mining", "true" ]
+    command: [ "--config", "config/nocostcoin.toml", "--port", "9000", "--mining", "true" ]
     environment:
       - RUST_LOG=info
     restart: unless-stopped
@@ -27,7 +27,7 @@ services:
     volumes:
       - ./data/node-2:/usr/local/bin/data
       - ./config:/usr/local/bin/config
-    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9001", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    command: [ "--config", "config/nocostcoin.toml", "--port", "9001", "--bootstrap", "/ip4/node-1/tcp/9000" ]
     restart: unless-stopped
     depends_on:
       - node-1
@@ -40,7 +40,7 @@ services:
     volumes:
       - ./data/node-3:/usr/local/bin/data
       - ./config:/usr/local/bin/config
-    command: [ "./nocostcoin", "--config", "config/nocostcoin.toml", "--port", "9002", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    command: [ "--config", "config/nocostcoin.toml", "--port", "9002", "--bootstrap", "/ip4/node-1/tcp/9000" ]
     restart: unless-stopped
     depends_on:
       - node-1
