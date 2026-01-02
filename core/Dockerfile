@@ -6,6 +6,17 @@ WORKDIR /usr/src/nocostcoin
 # Install build dependencies for RocksDB
 RUN apt-get update && apt-get install -y clang cmake
 
+# Create empty project for caching dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+COPY Cargo.toml Cargo.lock ./
+
+# Build dependencies (this layer is cached until Cargo.toml changes)
+RUN cargo build --release
+
+# Remove dummy build artifacts so actual source is compiled
+RUN rm src/*.rs
+RUN rm ./target/release/deps/nocostcoin*
+
 COPY . .
 
 # Build release binary
