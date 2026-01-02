@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const backendUrl = 'http://localhost:8000';
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const response = await fetch(`${backendUrl}/mempool`);
 
         if (!response.ok) {

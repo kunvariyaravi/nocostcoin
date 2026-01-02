@@ -6,9 +6,9 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        // Forward to backend API (default to port 8000)
-        const backendPort = process.env.NEXT_PUBLIC_API_PORT || '8000';
-        const response = await fetch(`http://localhost:${backendPort}/faucet`, {
+        // Forward to backend API
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${backendUrl}/faucet`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
