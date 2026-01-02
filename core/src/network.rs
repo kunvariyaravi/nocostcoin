@@ -407,7 +407,7 @@ impl NetworkNode {
             }
             NocostcoinBehaviourEvent::Kademlia(kad::Event::RoutingUpdated {
                 peer,
-                addresses,
+                addresses: _addresses,
                 ..
             }) => {
                 // debug!("Routing updated for peer {}: {:?}", peer, addresses);
