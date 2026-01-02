@@ -151,6 +151,27 @@ npm run dev
 
 ---
 
+### 🌍 Live Testnet (Hostinger VPS)
+**Status:** 🟢 Online
+**IP:** `72.62.167.94`
+
+### Web Interface
+- **Explorer**: http://72.62.167.94:3001/testnet/explorer
+- **Wallet**: http://72.62.167.94:3001/testnet/wallet
+- **Network Stats**: http://72.62.167.94:3001/testnet/network
+
+### API Endpoints
+- **Node Info**: `http://72.62.167.94:3000/api/node/info`
+- **Submit Transaction**: `http://72.62.167.94:3000/api/node/transaction`
+
+### Connect Your Peer
+To join the network, run your node with:
+```bash
+./nocostcoin --peer 80.225.208.120:8080
+```
+
+---
+
 ## Testnet Access Points
 
 Once all nodes and the UI are running:

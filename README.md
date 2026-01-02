@@ -102,6 +102,33 @@ npm run dev
 - **API Node 3**: http://localhost:8002
 - **Metrics**: http://localhost:9090-9092
 
+### Deploy to Production
+
+**Deploy your node on free VPS platforms for 24/7 operation:**
+
+📚 **Deployment Guides:**
+- [**Free VPS Deployment Guide**](DEPLOYMENT_FREE_VPS.md) - Complete guide for Oracle Cloud, GCP, AWS, Render, Railway
+- [**Quick Start Commands**](deploy/QUICK_START.md) - Copy-paste deployment commands
+- [**Validator Guide**](docs/VALIDATOR_GUIDE.md) - Run a production validator
+
+**Quick Deploy Options:**
+```bash
+# Oracle Cloud Free Tier (RECOMMENDED - Forever Free)
+# 1GB RAM, 1 vCPU, 50GB storage - 24/7 operation
+curl -fsSL https://raw.githubusercontent.com/yourusername/nocostcoin/main/deploy/scripts/setup-oracle-cloud.sh | bash
+
+# Docker Single Node (Any VPS)
+docker-compose -f docker-compose.minimal.yml up -d
+
+# Systemd Service (Any Linux Server)
+sudo cp deploy/systemd/nocostcoin.service /etc/systemd/system/
+sudo systemctl enable --now nocostcoin
+```
+
+**One-Click Deploy:**
+- [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+- [Deploy to Railway](https://railway.app/new/template) - Use repository URL
+
 ## 📖 UI Features
 
 The Next.js dashboard provides:
