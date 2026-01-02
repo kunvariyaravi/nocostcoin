@@ -1,9 +1,9 @@
 # Nocostcoin Technical Whitepaper
 ## A High-Performance Blockchain for the AI Economy
 
-**Version**: 2.0  
-**Date**: December 2025  
-**Status**: Testnet
+**Version**: 2.1
+**Date**: January 2026
+**Status**: Testnet Live (SSL Enabled)
 
 ---
 
