@@ -2,7 +2,9 @@
 
 [network]
 port = 9000
-bootstrap_peers = []
+bootstrap_peers = [
+    "/ip4/72.62.167.94/tcp/9000/p2p/12D3KooWLDNRYGTyFhLuD29m3eDazhhVQQfXCowSnBfTnh1y5xtH"
+]
 listen_addr = "/ip4/127.0.0.1/tcp/9000"
 
 [genesis]
