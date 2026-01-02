@@ -44,16 +44,3 @@ services:
     restart: unless-stopped
     depends_on:
       - node-1
-
-  ui:
-    build: ./ui
-    ports:
-      - "3000:3000"
-    environment:
-      # Next.js server-side calls to API
-      # In Docker network, valid hostname is 'node-1', but port is 8000
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - API_URL=http://node-1:8000
-    restart: unless-stopped
-    depends_on:
-      - node-1
