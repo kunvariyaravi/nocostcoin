@@ -13,7 +13,50 @@ This workflow guides you through deploying a Nocostcoin node on a free VPS platf
 
 ---
 
-## Option 1: Oracle Cloud Free Tier (✅ DEPLOYED)
+## Option 1: Hostinger VPS (✅ ACTIVE)
+
+**🎉 Instance is now running on Hostinger!**
+- **Public IP**: `72.62.167.94`
+- **OS**: Debian 12
+- **User**: `root`
+
+### Quick Deploy
+
+// turbo-all
+```bash
+# SSH to VPS
+ssh root@72.62.167.94
+
+# First time setup (run once)
+cd /opt/nocostcoin/nocostcoin
+bash deploy/scripts/setup-hostinger.sh
+
+# Deploy or update
+bash deploy/scripts/deploy-hostinger.sh
+```
+
+### Access Points
+- **Website**: http://72.62.167.94:3000
+- **Node API**: http://72.62.167.94:8000/stats
+- **P2P Network**: 72.62.167.94:9000
+
+### Monitoring
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Check status
+docker compose -f docker-compose.prod.yml ps
+
+# View stats
+curl http://localhost:8000/stats
+```
+
+For detailed instructions, see [HOSTINGER_DEPLOYMENT.md](../deploy/HOSTINGER_DEPLOYMENT.md)
+
+---
+
+## Option 2: Oracle Cloud Free Tier (✅ DEPLOYED)
 
 **🎉 Instance `nocostcoin-node` is now running!**
 - **Public IP**: `80.225.208.120`

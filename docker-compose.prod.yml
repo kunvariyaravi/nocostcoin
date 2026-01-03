@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  node-1:
+    build: 
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: nocostcoin-node
+    ports:
+      - "9000:9000"  # P2P
+      - "8000:8000"  # API
+    volumes:
+      - ./data/node-1:/usr/local/bin/data
+      - ./config:/usr/local/bin/config
+    command: 
+      - "--config"
+      - "config/nocostcoin.toml"
+      - "--port"
+      - "9000"
+      - "--api-port"
+      - "8000"
+      - "--mining"
+      - "true"
+    environment:
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+    restart: unless-stopped
+    networks:
+      - nocostcoin-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: nocostcoin-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://node-1:8000
+    restart: unless-stopped
+    depends_on:
+      node-1:
+        condition: service_healthy
+    networks:
+      - nocostcoin-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+
+networks:
+  nocostcoin-network:
+    driver: bridge
+
+volumes:
+  node-data:
