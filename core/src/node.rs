@@ -661,14 +661,10 @@ impl Node {
                         crate::api::ApiCommand::GetValidatorStatus(address_opt, respond_to) => {
                             // If an address is specified, check that address's validator status
                             // Otherwise, return the node's own validator status
-                            let check_address = if let Some(addr_hex) = address_opt {
+                            let check_address: Vec<u8> = if let Some(addr_hex) = address_opt {
                                 // Try to decode the hex address
                                 match hex::decode(&addr_hex) {
-                                    Ok(decoded) if decoded.len() == 32 => {
-                                        let mut arr = [0u8; 32];
-                                        arr.copy_from_slice(&decoded);
-                                        arr
-                                    }
+                                    Ok(decoded) if decoded.len() == 32 => decoded,
                                     _ => {
                                         // Invalid address format, return None
                                         let _ = respond_to.send(None);
@@ -676,7 +672,7 @@ impl Node {
                                     }
                                 }
                             } else {
-                                my_address
+                                my_address.clone()
                             };
                             
                             let validator = chain.validators.get_validator(&check_address);
