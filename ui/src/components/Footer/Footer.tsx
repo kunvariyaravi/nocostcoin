@@ -35,14 +35,8 @@ export default function Footer() {
                     <div>
                         <h3 className="font-semibold text-white mb-4">Community</h3>
                         <div className="flex flex-col space-y-2">
-                            <Link href="#" className="text-sm hover:text-primary-400 transition-colors">
-                                Twitter
-                            </Link>
-                            <Link href="#" className="text-sm hover:text-primary-400 transition-colors">
-                                Discord
-                            </Link>
-                            <Link href="#" className="text-sm hover:text-primary-400 transition-colors">
-                                Governance
+                            <Link href="https://x.com/nocostcoin" className="text-sm hover:text-primary-400 transition-colors" target="_blank">
+                                X (Twitter)
                             </Link>
                         </div>
                     </div>
@@ -50,10 +44,10 @@ export default function Footer() {
                     <div>
                         <h3 className="font-semibold text-white mb-4">Legal</h3>
                         <div className="flex flex-col space-y-2">
-                            <Link href="#" className="text-sm hover:text-primary-400 transition-colors">
+                            <Link href="/terms" className="text-sm hover:text-primary-400 transition-colors">
                                 Terms of Service
                             </Link>
-                            <Link href="#" className="text-sm hover:text-primary-400 transition-colors">
+                            <Link href="/privacy" className="text-sm hover:text-primary-400 transition-colors">
                                 Privacy Policy
                             </Link>
                         </div>

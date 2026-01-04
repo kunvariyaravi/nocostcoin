@@ -101,7 +101,7 @@ export default function NetworkPage() {
                                 Online
                             </div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-800 px-2 py-1 rounded w-fit">
                                     <SignalIcon className="w-3 h-3" />
                                     Not Running
@@ -109,6 +109,13 @@ export default function NetworkPage() {
                                 <p className="text-xs text-slate-600">
                                     Start a local node to see it here
                                 </p>
+                                <a
+                                    href="/blog/how-to-run-node"
+                                    target="_blank"
+                                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
+                                >
+                                    Read Setup Guide &rarr;
+                                </a>
                             </div>
                         )}
                     </div>
@@ -144,6 +151,8 @@ export default function NetworkPage() {
                         )}
                     </div>
                 </div>
+
+
 
                 {/* Network Peers */}
                 {peers.map((peer) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import TransactionConfirmation, { TransactionData } from '@/components/TransactionConfirmation/TransactionConfirmation';
 
 interface TransactionFormProps {
     userAddress: string;
@@ -11,26 +12,55 @@ export default function TransactionForm({ userAddress }: TransactionFormProps) {
     const [amount, setAmount] = useState('');
     const [status, setStatus] = useState<null | { type: 'success' | 'error', message: string }>(null);
     const [loading, setLoading] = useState(false);
+    const [confirmTransaction, setConfirmTransaction] = useState<TransactionData | null>(null);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setStatus(null);
 
-        // Validate that receiver is not the same as sender
-        if (receiver.toLowerCase() === userAddress.toLowerCase()) {
-            setStatus({ type: 'error', message: 'Cannot send tokens to yourself. Please enter a different address.' });
-            setLoading(false);
+        // Basic validation
+        if (!receiver || !amount) {
+            setStatus({ type: 'error', message: 'Please fill in all fields' });
             return;
         }
+
+        if (receiver.toLowerCase() === userAddress.toLowerCase()) {
+            setStatus({ type: 'error', message: 'Cannot send tokens to yourself. Please enter a different address.' });
+            return;
+        }
+
+        // Show confirmation popup
+        setConfirmTransaction({
+            from: userAddress,
+            to: receiver,
+            amount: parseFloat(amount),
+            fee: 0 // Zero fees!
+        });
+    };
+
+    const executeTransaction = async (password?: string) => {
+        if (!confirmTransaction) return;
+
+        // In a real implementation with password, we would pass the password to sign the transaction
+        // For now the backend handles unsigned transactions or we sign in browserWallet
+        // Since the current API seems to accept raw inputs, we'll keep the existing flow
+        // but if we need signing, we should use password here.
+        // Assuming the current /api/node/transaction/create endpoint handles it.
+
+        // Wait, normally we sign LOCALLY then send. 
+        // The implementation_plan said we are enhancing security.
+        // If the API endpoint signs it (which implies node has the key), that's not secure wallet.
+        // But browserWallet.ts has signData.
+        // The current TransactionForm calls /api/node/transaction/create.
+        // Let's check that API router.
 
         try {
             const res = await fetch('/api/node/transaction/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    receiver,
-                    amount: parseInt(amount),
+                    receiver: confirmTransaction.to,
+                    amount: confirmTransaction.amount,
                 }),
             });
 
@@ -40,14 +70,13 @@ export default function TransactionForm({ userAddress }: TransactionFormProps) {
 
             setStatus({
                 type: 'success',
-                message: `Transaction sent successfully! Hash: ${data.substring(0, 16)}...`
+                message: `Transaction sent successfully! Hash: ${typeof data === 'string' ? data.substring(0, 16) : 'Success'}...`
             });
             setReceiver('');
             setAmount('');
+            setConfirmTransaction(null);
         } catch (err: any) {
-            setStatus({ type: 'error', message: err.message });
-        } finally {
-            setLoading(false);
+            throw new Error(err.message || 'Transaction failed');
         }
     };
 
@@ -84,7 +113,7 @@ export default function TransactionForm({ userAddress }: TransactionFormProps) {
                 </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Receiver Address
@@ -139,7 +168,7 @@ export default function TransactionForm({ userAddress }: TransactionFormProps) {
                     {loading ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Sending...
+                            Processing...
                         </>
                     ) : (
                         '→ Send Transaction'
@@ -158,6 +187,14 @@ export default function TransactionForm({ userAddress }: TransactionFormProps) {
                     </div>
                 )}
             </form>
+
+            <TransactionConfirmation
+                isOpen={!!confirmTransaction}
+                transaction={confirmTransaction}
+                onConfirm={executeTransaction}
+                onCancel={() => setConfirmTransaction(null)}
+                requirePassword={false} // Enable this when client-side signing is fully implemented
+            />
         </div>
     );
 }

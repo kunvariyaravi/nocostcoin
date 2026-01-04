@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
     "@types/nodemailer": "^7.0.4",
+    "bip39": "^3.1.0",
+    "crypto-js": "^4.2.0",
     "framer-motion": "^12.23.26",
     "next": "14.2.3",
     "nodemailer": "^7.0.12",
@@ -20,6 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
+    "@types/crypto-js": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

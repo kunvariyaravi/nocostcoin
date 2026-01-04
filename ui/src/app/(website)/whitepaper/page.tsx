@@ -10,7 +10,7 @@ export default function Whitepaper() {
                     <div className="mb-12 border-b border-slate-700 pb-8">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h1 className="text-5xl font-bold text-white mb-4">Nocostcoin Whitepaper 2.1</h1>
+                                <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 mb-4">Nocostcoin Whitepaper 2.1</h1>
                                 <p className="text-xl text-primary-400 font-medium mb-2">
                                     The Native AI Economy Blockchain
                                 </p>
@@ -70,6 +70,14 @@ export default function Whitepaper() {
                                 <li><strong>Account Registry</strong>: Balances and Nonces.</li>
                                 <li><strong>Asset Registry</strong>: Metadata for native tokens and NFTS.</li>
                                 <li><strong>Channel Registry</strong>: State of open payment channels.</li>
+                            </ul>
+
+                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">3.3 Spam Prevention: Zero-Knowledge Puzzles</h3>
+                            <p>To enable zero-fee transactions without opening the network to spam, Nocostcoin implements a client-side Proof-of-Work (PoW) puzzle requirement.</p>
+                            <ul className="list-disc pl-6 space-y-2 mt-4">
+                                <li><strong>Adaptive Difficulty</strong>: The difficulty of the puzzle scales dynamically with network congestion. During quiet periods, the puzzle takes milliseconds to solve. During attacks, it becomes computationally expensive.</li>
+                                <li><strong>Memory-Hard Algorithm</strong>: We use a variant of Argon2, forcing attackers to use memory resources, which cannot be easily parallelized on ASICs.</li>
+                                <li><strong>Pre-Computation Prevention</strong>: Puzzles are salted with the latest block hash, preventing attackers from generating valid transactions ahead of time.</li>
                             </ul>
                         </section>
 
@@ -180,14 +188,22 @@ export default function Whitepaper() {
 
                         <section>
                             <h2 className="text-3xl font-bold text-white mb-6">7. Economic Model</h2>
-                            <h3 className="text-2xl font-semibold text-white mb-4">7.1 Token Supply</h3>
+                            <h3 className="text-2xl font-semibold text-white mb-4">7.1 Zero-Fee Architecture</h3>
+                            <p className="mb-4">
+                                Unlike traditional blockchains that treat blockspace as a commodity to be auctioned, Nocostcoin treats it as a public utility protected by computational barriers rather than financial ones.
+                            </p>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
-                                <li><strong>Initial Supply</strong>: 1M per node (Testnet)</li>
-                                <li><strong>Inflation</strong>: None planned</li>
-                                <li><strong>Transaction Fees</strong>: Planned for mainnet (burned or distributed)</li>
+                                <li><strong>User Cost</strong>: Zero financial cost. Time-cost (computation) is negligible for legitimate users but prohibitive for spammers.</li>
+                                <li><strong>Validator Incentives</strong>: Validators are rewarded via block rewards (inflation) rather than fees, aligning long-term network security with token value.</li>
                             </ul>
 
-                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.2 Staking</h3>
+                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.2 Token Supply</h3>
+                            <ul className="list-disc pl-6 text-slate-400 space-y-2">
+                                <li><strong>Initial Supply</strong>: 1M per node (Testnet)</li>
+                                <li><strong>Inflationary Rewards</strong>: 2.5% annual inflation allocated to validators.</li>
+                            </ul>
+
+                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.3 Staking</h3>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
                                 <li><strong>Minimum Stake</strong>: 0.1% of total network stake</li>
                                 <li><strong>Slashing</strong>: 100% of stake for equivocation</li>

@@ -132,18 +132,7 @@ export default function Contact() {
                         )}
                     </div>
 
-                    <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="card text-center">
-                            <div className="text-4xl mb-3">📧</div>
-                            <h3 className="font-semibold text-white mb-2">Email</h3>
-                            <p className="text-slate-400">contact@nocostcoin.org</p>
-                        </div>
-                        <div className="card text-center">
-                            <div className="text-4xl mb-3">💬</div>
-                            <h3 className="font-semibold text-white mb-2">Discord</h3>
-                            <p className="text-slate-400">Join our community</p>
-                        </div>
-                    </div>
+
                 </div>
             </main>
         </>

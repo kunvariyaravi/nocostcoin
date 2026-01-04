@@ -7,6 +7,7 @@ import {
     CpuChipIcon,
     ChartBarIcon
 } from '@heroicons/react/24/outline';
+import { useWallet } from '@/contexts/WalletContext';
 
 interface ValidatorStatus {
     pubkey: string;
@@ -15,6 +16,7 @@ interface ValidatorStatus {
 }
 
 export default function ValidatorPage() {
+    const { wallet, isConnected } = useWallet();
     const [status, setStatus] = useState<ValidatorStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [registering, setRegistering] = useState(false);
@@ -22,25 +24,14 @@ export default function ValidatorPage() {
     const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const fetchStatus = async () => {
+        if (!wallet?.address) {
+            setLoading(false);
+            return;
+        }
+
         try {
-            // Get the connected wallet address from localStorage
-            const wallet = localStorage.getItem('wallet');
-            let walletAddress = null;
-
-            if (wallet) {
-                try {
-                    const walletData = JSON.parse(wallet);
-                    walletAddress = walletData.address;
-                } catch (e) {
-                    console.error('Failed to parse wallet data:', e);
-                }
-            }
-
-            // Build API URL with address parameter if wallet is connected
-            let apiUrl = '/api/node/validator';
-            if (walletAddress) {
-                apiUrl += `?address=${encodeURIComponent(walletAddress)}`;
-            }
+            // Query validator status for the browser wallet address
+            const apiUrl = `/api/node/validator?address=${encodeURIComponent(wallet.address)}`;
 
             const res = await fetch(apiUrl);
             if (res.ok) {
@@ -57,8 +48,9 @@ export default function ValidatorPage() {
     };
 
     useEffect(() => {
+        setLoading(true);
         fetchStatus();
-    }, []);
+    }, [wallet?.address]);
 
     const handleRegister = async () => {
         setRegistering(true);
