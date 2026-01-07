@@ -8,7 +8,13 @@ export async function GET(
 ) {
     try {
         const address = params.address;
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const internal = process.env.INTERNAL_API_URL;
+        const publicUrl = process.env.NEXT_PUBLIC_API_URL;
+        const backendUrl = internal || publicUrl || 'http://localhost:8000';
+
+        console.log(`[Debug] Account Route: Address=${address}`);
+        console.log(`[Debug] Env Vars: INTERNAL=${internal}, PUBLIC=${publicUrl}`);
+        console.log(`[Debug] Resolved BackendURL=${backendUrl}`);
 
         const response = await fetch(`${backendUrl}/account/${address}`);
 
