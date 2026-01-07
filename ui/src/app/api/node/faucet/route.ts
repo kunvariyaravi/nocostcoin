@@ -7,7 +7,7 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Forward to backend API
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const response = await fetch(`${backendUrl}/faucet`, {
             method: 'POST',
             headers: {

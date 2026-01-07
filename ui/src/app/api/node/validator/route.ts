@@ -7,7 +7,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const address = searchParams.get('address');
 
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         // Build URL with optional address parameter
         let url = `${backendUrl}/validator`;

@@ -8,7 +8,7 @@ export async function GET(
 ) {
     try {
         const hash = params.hash;
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         const response = await fetch(`${backendUrl}/transaction/${hash}`);
 

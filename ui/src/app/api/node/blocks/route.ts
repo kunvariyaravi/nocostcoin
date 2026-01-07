@@ -9,7 +9,7 @@ export async function GET(request: Request) {
         const limit = searchParams.get('limit') || '10';
 
         // Use environment variable or fallback to localhost
-        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         let url = `${backendUrl}/blocks?limit=${limit}`;
         if (start_height) {
