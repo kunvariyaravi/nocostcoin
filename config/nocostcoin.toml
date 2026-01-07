@@ -19,4 +19,4 @@ initial_validators = [
 
 [mining]
 enabled = true
-# validator_seed = "..." # Uncomment to enforce deterministic mining identity
+validator_seed = "nocostcoin_node_9000_seed" # Uncomment to enforce deterministic mining identity
