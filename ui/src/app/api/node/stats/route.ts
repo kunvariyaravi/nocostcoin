@@ -8,19 +8,25 @@ export async function GET() {
         const response = await fetch(`${backendUrl}/stats`);
 
         if (!response.ok) {
-            return NextResponse.json(
-                { error: `Backend responded with ${response.status}` },
-                { status: response.status }
-            );
+            return NextResponse.json({ error: 'Failed to fetch stats' }, { status: response.status });
         }
 
         const data = await response.json();
-        return NextResponse.json(data);
+        return NextResponse.json({
+            ...data,
+            debug_env: {
+                internal: process.env.INTERNAL_API_URL,
+                public: process.env.NEXT_PUBLIC_API_URL
+            }
+        });
     } catch (error) {
-        console.error('Error fetching stats:', error);
-        return NextResponse.json(
-            { error: 'Failed to connect to Nocostcoin node' },
-            { status: 500 }
-        );
+        return NextResponse.json({
+            error: 'Internal Server Error',
+            debug_env: {
+                internal: process.env.INTERNAL_API_URL,
+                public: process.env.NEXT_PUBLIC_API_URL,
+                error: String(error)
+            }
+        }, { status: 500 });
     }
 }
