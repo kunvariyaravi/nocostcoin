@@ -31,7 +31,7 @@ WORKDIR /usr/local/bin
 COPY --from=builder /usr/src/nocostcoin/target/release/nocostcoin .
 
 # Install dependencies (OpenSSL usually needed)
-RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl-dev ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Expose ports (P2P and API)
 EXPOSE 9000 8000
