@@ -16,7 +16,13 @@ export async function GET(request: Request) {
             url += `&start_height=${start_height}`;
         }
 
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: {
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'
+            }
+        });
 
         if (!response.ok) {
             return NextResponse.json(
