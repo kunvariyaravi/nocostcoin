@@ -304,20 +304,31 @@ function SendView({ onBack, address, balance, onSuccess }: any) {
             );
 
             // 2. Send Signed TX to Backend
+            console.log("Sending transaction to /api/node/transaction/send", signedTx);
             const res = await fetch('/api/node/transaction/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(signedTx),
             });
 
-            const data = await res.json();
+            const text = await res.text();
+            console.log("Response status:", res.status);
+            console.log("Response text:", text);
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (err) {
+                throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}... (Status: ${res.status})`);
+            }
+
             if (!res.ok) throw new Error(data.error || JSON.stringify(data) || 'Failed to send');
 
             setStatus({ type: 'success', message: 'Transaction Sent! Hash: ' + (data.substring ? data.substring(0, 16) + '...' : 'Success') });
             setTimeout(onSuccess, 3000);
 
         } catch (e: any) {
-            console.error(e);
+            console.error("Transaction Error:", e);
             setStatus({ type: 'error', message: e.message || "Transaction failed" });
         } finally {
             setLoading(false);
