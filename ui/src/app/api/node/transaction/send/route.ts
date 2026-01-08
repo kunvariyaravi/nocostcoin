@@ -3,8 +3,14 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+    console.log('[API] /transaction/send called');
     try {
-        const body = await request.json();
+        const bodyText = await request.text();
+        console.log('[API] /transaction/send body:', bodyText);
+        if (!bodyText) {
+            throw new Error('Empty request body');
+        }
+        const body = JSON.parse(bodyText);
 
         // Transform the frontend transaction format to the backend format if needed
         // Backend SubmitTransaction expects a "Transaction" object with:
@@ -31,7 +37,10 @@ export async function POST(request: Request) {
             signature: hexToBytes(body.signature)
         };
 
+        console.log('[API] Transformed TX:', JSON.stringify(tx));
+
         const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        console.log('[API] Forwarding to:', `${backendUrl}/transaction/send`);
 
         const response = await fetch(`${backendUrl}/transaction/send`, {
             method: 'POST',
@@ -44,14 +53,27 @@ export async function POST(request: Request) {
             body: JSON.stringify(tx),
         });
 
-        const data = await response.json();
+        const responseText = await response.text();
+        console.log(`[API] Backend response status: ${response.status}`);
+        console.log(`[API] Backend response body: ${responseText}`);
 
         if (!response.ok) {
-            return NextResponse.json(data, { status: response.status });
+            return NextResponse.json(
+                { error: `Backend error: ${response.status}`, details: responseText },
+                { status: response.status }
+            );
         }
 
-        return NextResponse.json(data);
+        try {
+            const data = JSON.parse(responseText);
+            return NextResponse.json(data);
+        } catch (e) {
+            console.warn('[API] Backend response was not JSON, returning as plain text result.');
+            // Handle case where backend returns non-JSON (e.g. string "OK")
+            return NextResponse.json({ result: responseText });
+        }
     } catch (error: any) {
+        console.error('[API] /transaction/send Error:', error);
         return NextResponse.json(
             { error: error.message || 'Failed to submit transaction' },
             { status: 500 }
