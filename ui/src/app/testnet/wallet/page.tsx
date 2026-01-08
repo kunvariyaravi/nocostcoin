@@ -282,24 +282,43 @@ function SendView({ onBack, address, balance, onSuccess }: any) {
         setStatus(null);
 
         try {
-            // Reusing existing API logic
-            const res = await fetch('/api/node/transaction/create', {
+            if (!wallet?.publicKey) throw new Error("Wallet not fully loaded");
+
+            // 1. Create and Sign Transaction Locally
+            // We use the nonce from the balance fetch (nonce state needs to be added to WalletPage)
+            // But state might be stale, better to use the one from balance or fetch fresh?
+            // Existing 'balance' state only holds number. We need 'nonce' too.
+            // Let's assume we add 'nonce' state to WalletPage or fetch it here.
+
+            // Fetch fresh nonce just to be safe
+            const accountRes = await fetch(`/api/node/account/${wallet.address}`, { cache: 'no-store' });
+            if (!accountRes.ok) throw new Error('Failed to fetch nonce');
+            const account = await accountRes.json();
+            const currentNonce = account.nonce;
+
+            const signedTx = await BrowserWallet.createAndSignTransaction(
+                wallet,
+                receiver,
+                parseInt(amount), // Assuming integer amount for now or convert float to atomic units if needed. Rust logic used NativeTransfer { amount } which is u64.
+                currentNonce
+            );
+
+            // 2. Send Signed TX to Backend
+            const res = await fetch('/api/node/transaction/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    receiver,
-                    amount: parseFloat(amount),
-                }),
+                body: JSON.stringify(signedTx),
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data || 'Failed to send');
+            if (!res.ok) throw new Error(data.error || JSON.stringify(data) || 'Failed to send');
 
-            setStatus({ type: 'success', message: 'Transaction Sent!' });
-            setTimeout(onSuccess, 1500);
+            setStatus({ type: 'success', message: 'Transaction Sent! Hash: ' + (data.substring ? data.substring(0, 16) + '...' : 'Success') });
+            setTimeout(onSuccess, 3000);
 
         } catch (e: any) {
-            setStatus({ type: 'error', message: e.message });
+            console.error(e);
+            setStatus({ type: 'error', message: e.message || "Transaction failed" });
         } finally {
             setLoading(false);
         }

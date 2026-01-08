@@ -431,3 +431,73 @@ function getSession(): Session | null {
         return null;
     }
 }
+
+// --- TRANSACTION LOGIC ---
+
+export interface Transaction {
+    sender: string;       // Hex
+    receiver: string;     // Hex
+    nonce: number;
+    amount: number;
+    signature?: string;   // Hex
+}
+
+export async function createAndSignTransaction(
+    wallet: Wallet,
+    receiverHex: string,
+    amount: number,
+    nonce: number
+): Promise<Transaction> {
+    if (!wallet.privateKey) throw new Error('Wallet is locked or private key invalid');
+
+    const senderBytes = Buffer.from(wallet.publicKey, 'hex');
+    const receiverBytes = Buffer.from(receiverHex, 'hex');
+
+    // Create Hash buffer
+    // Layout: sender(32) + receiver(32) + nonce(8) + tag("NativeTransfer")(14) + amount(8)
+    const tag = Buffer.from("NativeTransfer");
+    const bufferSize = 32 + 32 + 8 + tag.length + 8;
+    const buffer = Buffer.alloc(bufferSize);
+
+    let offset = 0;
+
+    // Sender
+    senderBytes.copy(buffer, offset);
+    offset += 32;
+
+    // Receiver
+    receiverBytes.copy(buffer, offset);
+    offset += 32;
+
+    // Nonce (u64 le)
+    buffer.writeBigUInt64LE(BigInt(nonce), offset);
+    offset += 8;
+
+    // Tag
+    tag.copy(buffer, offset);
+    offset += tag.length;
+
+    // Amount (u64 le)
+    buffer.writeBigUInt64LE(BigInt(amount), offset);
+    offset += 8;
+
+    // Hash (SHA-256)
+    // Using CryptoJS to be consistent with other hashing if needed, or web crypto.
+    // Buffer -> WordArray -> SHA256 -> Hex -> Bytes
+    const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
+    const hash = CryptoJS.SHA256(wordArray);
+    const hashHex = hash.toString(CryptoJS.enc.Hex);
+    const hashBytes = Buffer.from(hashHex, 'hex');
+
+    // Sign
+    const privateKeyBytes = Buffer.from(wallet.privateKey, 'hex');
+    const signatureBytes = await ed.signAsync(hashBytes, privateKeyBytes);
+
+    return {
+        sender: wallet.publicKey,
+        receiver: receiverHex,
+        nonce,
+        amount,
+        signature: Buffer.from(signatureBytes).toString('hex')
+    };
+}
