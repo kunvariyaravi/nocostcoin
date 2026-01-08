@@ -241,7 +241,7 @@ function DashboardView({ balance, loading, onSend, onReceive, address }: { balan
                                 </div>
                             </div>
                             <div className="pt-8 text-center">
-                                <p className="text-xs text-slate-600 mb-2">Don't see your token?</p>
+                                <p className="text-xs text-slate-600 mb-2">Don&apos;t see your token?</p>
                                 <button className="text-blue-400 text-sm font-medium hover:text-blue-300">Import tokens</button>
                             </div>
                         </div>
@@ -496,7 +496,7 @@ function AuthScreen({ isConnected, isUnlocked }: any) {
                     </div>
 
                     <button onClick={handleMnemonicSaved} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20">
-                        I've stored it securely
+                        I&apos;ve stored it securely
                     </button>
                 </div>
             </div>

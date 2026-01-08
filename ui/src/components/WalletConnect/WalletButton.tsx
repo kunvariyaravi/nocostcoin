@@ -57,7 +57,7 @@ export default function WalletButton() {
                 <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-md w-full">
                     <h3 className="text-xl font-bold mb-4">⚠️ Save Your Recovery Phrase</h3>
                     <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-4">
-                        <p className="text-red-400 text-sm mb-2">Write this down! You'll need it to recover your wallet.</p>
+                        <p className="text-red-400 text-sm mb-2">Write this down! You&apos;ll need it to recover your wallet.</p>
                         <div className="bg-slate-950 p-3 rounded font-mono text-sm text-emerald-400">
                             {mnemonic}
                         </div>
@@ -69,7 +69,7 @@ export default function WalletButton() {
                         }}
                         className="btn-primary w-full"
                     >
-                        I've Saved It
+                        I&apos;ve Saved It
                     </button>
                 </div>
             </div>
