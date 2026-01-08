@@ -31,7 +31,13 @@ export default function ExplorerPage() {
     const fetchBlocks = async () => {
         try {
             // Fetch last 20 blocks with cache busting
-            const res = await fetch('/api/node/blocks?limit=20', { cache: 'no-store' });
+            const res = await fetch(`/api/node/blocks?limit=20&t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache'
+                }
+            });
             if (res.ok) {
                 const data = await res.json();
                 setBlocks(data);
