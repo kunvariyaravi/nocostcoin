@@ -1,0 +1,22 @@
+# Nocostcoin Configuration
+
+[network]
+port = 9000
+bootstrap_peers = [
+    "/ip4/72.62.167.94/tcp/9000/p2p/12D3KooWLDNRYGTyFhLuD29m3eDazhhVQQfXCowSnBfTnh1y5xtH"
+]
+listen_addr = "/ip4/127.0.0.1/tcp/9000"
+
+[genesis]
+# Updated to match VPS time (Jan 25 2026)
+genesis_time = 1767875000000
+genesis_seed = "nocostcoin-genesis-seed"
+initial_validators = [
+    "nocostcoin_node_9000_seed",
+    "nocostcoin_node_9001_seed",
+    "nocostcoin_node_9002_seed"
+]
+
+[mining]
+enabled = true
+validator_seed = "nocostcoin_node_9000_seed"

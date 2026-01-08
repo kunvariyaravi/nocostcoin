@@ -30,8 +30,8 @@ export default function ExplorerPage() {
 
     const fetchBlocks = async () => {
         try {
-            // Fetch last 20 blocks
-            const res = await fetch('/api/node/blocks?limit=20');
+            // Fetch last 20 blocks with cache busting
+            const res = await fetch('/api/node/blocks?limit=20', { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 setBlocks(data);
@@ -100,7 +100,10 @@ export default function ExplorerPage() {
                                 </tr>
                             ) : (
                                 filteredBlocks.map((block) => {
-                                    const timeAgo = Math.floor((Date.now() - block.header.timestamp) / 1000);
+                                    // Handle future timestamps due to VPS offset
+                                    let timeAgo = Math.floor((Date.now() - block.header.timestamp) / 1000);
+                                    if (timeAgo < 0) timeAgo = 0; // Clamp explicit future timestamps
+
                                     let timeString = `${timeAgo}s ago`;
                                     if (timeAgo > 60) timeString = `${Math.floor(timeAgo / 60)}m ago`;
 
