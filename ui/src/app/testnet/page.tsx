@@ -245,6 +245,31 @@ export default function TestnetDashboard() {
             {/* Core Interaction Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
+                {/* 0. Wallet Stats Card */}
+                <div className="card border-emerald-500/20 bg-slate-800/50 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4 text-emerald-400">
+                        <WalletIcon className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">My Wallet</h3>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                            <p className="text-sm text-slate-400 mb-1">Balance</p>
+                            <p className="text-3xl font-bold text-white mb-4">
+                                {balance.toLocaleString()} <span className="text-lg text-emerald-400 font-normal">NCC</span>
+                            </p>
+                            <p className="text-sm text-slate-400 mb-1">Address</p>
+                            <div className="flex items-center justify-between bg-slate-900/50 rounded p-2 border border-slate-700">
+                                <code className="text-xs text-slate-300 font-mono truncate mr-2">
+                                    {wallet?.address}
+                                </code>
+                                <button onClick={copyToClipboard} className="text-slate-500 hover:text-white transition-colors">
+                                    {copied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <DocumentDuplicateIcon className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* 1. Send Card */}
                 <div className="card border-blue-500/20 bg-slate-800/50 flex flex-col">
                     <div className="flex items-center gap-3 mb-4 text-blue-400">
