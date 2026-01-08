@@ -16,7 +16,13 @@ export async function GET(
         console.log(`[Debug] Env Vars: INTERNAL=${internal}, PUBLIC=${publicUrl}`);
         console.log(`[Debug] Resolved BackendURL=${backendUrl}`);
 
-        const response = await fetch(`${backendUrl}/account/${address}`);
+        const response = await fetch(`${backendUrl}/account/${address}`, {
+            cache: 'no-store',
+            headers: {
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache'
+            }
+        });
 
         if (!response.ok) {
             if (response.status === 404) {

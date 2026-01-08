@@ -31,7 +31,7 @@ export default function WalletPage() {
     const fetchBalance = async () => {
         if (!wallet?.address) return;
         try {
-            const accountRes = await fetch(`/api/node/account/${wallet.address}`);
+            const accountRes = await fetch(`/api/node/account/${wallet.address}`, { cache: 'no-store' });
             if (accountRes.ok) {
                 const account = await accountRes.json();
                 setBalance(account.balance);
