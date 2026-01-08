@@ -434,7 +434,9 @@ impl Node {
                     }
 
                     // 3. Produce block
+                    println!("⛏️  Mining: Check mempool (size: {})", mempool.len());
                     let transactions = mempool.get_transactions_for_block(100);
+                    println!("⛏️  Mining: Selected {} txs for block", transactions.len());
                     
                     let new_header = BlockHeader {
                         parent_hash: parent.hash.clone(),
@@ -470,6 +472,7 @@ impl Node {
                             current_slot, new_block.hash, new_block.transactions.len());
                         
                         mempool.remove_transactions(&transactions);
+                        println!("🧹 Mining: Removed {} txs from mempool. New size: {}", transactions.len(), mempool.len());
                         
                         network_client.broadcast_block(new_block.clone());
                         println!("Broadcasted block");
@@ -500,6 +503,7 @@ impl Node {
                         println!("✓ Accepted block from network for slot {}", block.header.slot);
                         println!("Added received block to chain");
                         mempool.remove_transactions(&block.transactions);
+                        println!("🧹 Network: Removed {} txs from mempool (incoming block). New size: {}", block.transactions.len(), mempool.len());
                         
                         // VOTE for this block
                         let head = chain.get_head();
@@ -779,7 +783,7 @@ impl Node {
                             println!("📝 Faucet: Created transaction with hash: {}", hash);
 
                             if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
-                                println!("✓ Faucet: Transaction added to mempool");
+                                println!("✓ Faucet: Transaction added to mempool. Size: {}", mempool.len());
                                 network_client.broadcast_transaction(tx);
                                 println!("📡 Faucet: Transaction broadcasted to network");
                                 
