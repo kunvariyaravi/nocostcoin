@@ -127,26 +127,27 @@ export default function TestnetDashboard() {
         setTxStatus(null);
 
         try {
-            // Create transaction data to sign
-            const txData = {
-                sender: wallet.address,
-                receiver: confirmTransaction.to,
-                amount: confirmTransaction.amount,
-                nonce: Date.now(), // Simplified - should get from blockchain
-            };
+            // 1. Fetch Nonce
+            const accountRes = await fetch(`/api/node/account/${wallet.address}`, { cache: 'no-store' });
+            if (!accountRes.ok) {
+                throw new Error(`Failed to fetch nonce: ${accountRes.status}`);
+            }
+            const account = await accountRes.json();
+            const currentNonce = account.nonce;
 
-            // Sign transaction client-side
-            const dataToSign = new TextEncoder().encode(JSON.stringify(txData));
-            const signature = await BrowserWallet.signData(dataToSign, wallet.privateKey);
+            // 2. Sign Transaction
+            const signedTx = await BrowserWallet.createAndSignTransaction(
+                wallet,
+                confirmTransaction.to,
+                confirmTransaction.amount,
+                currentNonce
+            );
 
-            // Send signed transaction to node
-            const res = await fetch('/api/node/transaction/submit', {
+            // 3. Send to Node
+            const res = await fetch('/api/node/transaction/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transaction: txData,
-                    signature: Array.from(signature), // Convert Uint8Array to array
-                })
+                body: JSON.stringify(signedTx)
             });
 
             if (res.ok) {
@@ -160,8 +161,9 @@ export default function TestnetDashboard() {
                 const err = await res.json();
                 setTxStatus({ type: 'error', msg: typeof err === 'object' ? (err.error || JSON.stringify(err)) : err });
             }
-        } catch (e) {
-            setTxStatus({ type: 'error', msg: `Failed to send: ${e}` });
+        } catch (e: any) {
+            console.error("Transaction Error:", e);
+            setTxStatus({ type: 'error', msg: `Failed to send: ${e.message || e}` });
         } finally {
             setSending(false);
         }
