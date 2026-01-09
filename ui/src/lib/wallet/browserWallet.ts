@@ -450,35 +450,36 @@ export async function createAndSignTransaction(
 ): Promise<Transaction> {
     if (!wallet.privateKey) throw new Error('Wallet is locked or private key invalid');
 
-    const senderBytes = Buffer.from(wallet.publicKey, 'hex');
-    const receiverBytes = Buffer.from(receiverHex, 'hex');
+    const senderBytes = Uint8Array.from(Buffer.from(wallet.publicKey, 'hex'));
+    const receiverBytes = Uint8Array.from(Buffer.from(receiverHex, 'hex'));
 
     // Create Hash buffer
     // Layout: sender(32) + receiver(32) + nonce(8) + tag("NativeTransfer")(14) + amount(8)
-    const tag = Buffer.from("NativeTransfer");
+    const tag = new TextEncoder().encode("NativeTransfer");
     const bufferSize = 32 + 32 + 8 + tag.length + 8;
-    const buffer = Buffer.alloc(bufferSize);
+    const buffer = new Uint8Array(bufferSize);
+    const view = new DataView(buffer.buffer);
 
     let offset = 0;
 
     // Sender
-    senderBytes.copy(buffer, offset);
+    buffer.set(senderBytes, offset);
     offset += 32;
 
     // Receiver
-    receiverBytes.copy(buffer, offset);
+    buffer.set(receiverBytes, offset);
     offset += 32;
 
     // Nonce (u64 le)
-    buffer.writeBigUInt64LE(BigInt(nonce), offset);
+    view.setBigUint64(offset, BigInt(nonce), true);
     offset += 8;
 
     // Tag
-    tag.copy(buffer, offset);
+    buffer.set(tag, offset);
     offset += tag.length;
 
     // Amount (u64 le)
-    buffer.writeBigUInt64LE(BigInt(amount), offset);
+    view.setBigUint64(offset, BigInt(amount), true);
     offset += 8;
 
     // Hash (SHA-256)
@@ -487,10 +488,10 @@ export async function createAndSignTransaction(
     const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
     const hash = CryptoJS.SHA256(wordArray);
     const hashHex = hash.toString(CryptoJS.enc.Hex);
-    const hashBytes = Buffer.from(hashHex, 'hex');
+    const hashBytes = Uint8Array.from(Buffer.from(hashHex, 'hex'));
 
     // Sign
-    const privateKeyBytes = Buffer.from(wallet.privateKey, 'hex');
+    const privateKeyBytes = Uint8Array.from(Buffer.from(wallet.privateKey, 'hex'));
     const signatureBytes = await ed.signAsync(hashBytes, privateKeyBytes);
 
     return {
