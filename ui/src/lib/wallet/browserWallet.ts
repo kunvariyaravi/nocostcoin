@@ -442,6 +442,22 @@ export interface Transaction {
     signature?: string;   // Hex
 }
 
+// Helper for Hex conversion
+function hexToBytes(hex: string): Uint8Array {
+    if (hex.length % 2 !== 0) throw new Error("Invalid hex string");
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+    return Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
 export async function createAndSignTransaction(
     wallet: Wallet,
     receiverHex: string,
@@ -450,8 +466,8 @@ export async function createAndSignTransaction(
 ): Promise<Transaction> {
     if (!wallet.privateKey) throw new Error('Wallet is locked or private key invalid');
 
-    const senderBytes = Uint8Array.from(Buffer.from(wallet.publicKey, 'hex'));
-    const receiverBytes = Uint8Array.from(Buffer.from(receiverHex, 'hex'));
+    const senderBytes = hexToBytes(wallet.publicKey);
+    const receiverBytes = hexToBytes(receiverHex);
 
     // Create Hash buffer
     // Layout: sender(32) + receiver(32) + nonce(8) + tag("NativeTransfer")(14) + amount(8)
@@ -488,10 +504,10 @@ export async function createAndSignTransaction(
     const wordArray = CryptoJS.lib.WordArray.create(buffer as any);
     const hash = CryptoJS.SHA256(wordArray);
     const hashHex = hash.toString(CryptoJS.enc.Hex);
-    const hashBytes = Uint8Array.from(Buffer.from(hashHex, 'hex'));
+    const hashBytes = hexToBytes(hashHex);
 
     // Sign
-    const privateKeyBytes = Uint8Array.from(Buffer.from(wallet.privateKey, 'hex'));
+    const privateKeyBytes = hexToBytes(wallet.privateKey);
     const signatureBytes = await ed.signAsync(hashBytes, privateKeyBytes);
 
     return {
@@ -499,6 +515,6 @@ export async function createAndSignTransaction(
         receiver: receiverHex,
         nonce,
         amount,
-        signature: Buffer.from(signatureBytes).toString('hex')
+        signature: bytesToHex(signatureBytes)
     };
 }
