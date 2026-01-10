@@ -508,7 +508,7 @@ impl Node {
                         println!("Broadcasted block");
 
                         // VOTE for our own block
-                        let context = schnorrkel::context::signing_context(b"nocostcoin-vote");
+                        let context = schnorrkel::signing_context(b"nocostcoin-vote");
                         let message = new_block.hash.as_bytes();
                         let signature = validator_keypair.sign(context.bytes(message)).to_bytes().to_vec();
                         
@@ -538,7 +538,7 @@ impl Node {
                         // VOTE for this block
                         let head = chain.get_head();
                         if head.hash == block.hash {
-                            let context = schnorrkel::context::signing_context(b"nocostcoin-vote");
+                            let context = schnorrkel::signing_context(b"nocostcoin-vote");
                             let message = head.hash.as_bytes();
                             let signature = validator_keypair.sign(context.bytes(message)).to_bytes().to_vec();
                             
