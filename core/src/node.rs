@@ -3,6 +3,7 @@ use crate::network::{NetworkConfig, NetworkNode, SyncMessage};
 use crate::crypto::Crypto;
 use crate::wallet::Wallet;
 use ed25519_dalek::{SigningKey, Signer};
+use schnorrkel::Keypair as SchnorrkelKeypair;
 use crate::block::{Block, BlockHeader};
 use crate::chain::Chain;
 use crate::mempool::Mempool;
@@ -255,8 +256,8 @@ impl Node {
 
         // Spawn blockchain simulation task
         let blockchain_handle = tokio::spawn(async move {
-            let mut validator_keypair = validator_keypair;
-            let mut wallet_keypair = wallet_keypair;
+            let mut validator_keypair: SchnorrkelKeypair = validator_keypair;
+            let mut wallet_keypair: SigningKey = wallet_keypair;
             let mut my_address = wallet_keypair.verifying_key().to_bytes().to_vec();
             let mut last_slot = 0;
             let mut mempool = Mempool::new(1000);
