@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use schnorrkel::{PublicKey, Signature};
+use ed25519_dalek::{Signature, VerifyingKey, Signer, SigningKey, Verifier};
 use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -71,7 +71,7 @@ impl Transaction {
         receiver: Vec<u8>, 
         data: TransactionData, 
         nonce: u64, 
-        keypair: &schnorrkel::Keypair
+        keypair: &SigningKey
     ) -> Self {
         let mut tx = Self {
             sender,
@@ -82,8 +82,8 @@ impl Transaction {
         };
         
         let message = tx.hash();
-        let context = schnorrkel::signing_context(b"nocostcoin-tx");
-        let signature = keypair.sign(context.bytes(&message));
+        // Ed25519 signs the message directly, no context string needed
+        let signature = keypair.sign(&message);
         tx.signature = signature.to_bytes().to_vec();
         
         tx
@@ -199,17 +199,20 @@ impl Transaction {
             return Err("Empty signature".to_string());
         }
 
-        let public_key = PublicKey::from_bytes(&self.sender)
+        if self.sender.len() != 32 {
+            return Err("Invalid sender key length".to_string());
+        }
+
+        let public_key = VerifyingKey::from_bytes(&self.sender.clone().try_into().unwrap())
             .map_err(|_| "Invalid sender public key")?;
 
-        let signature = Signature::from_bytes(&self.signature)
+        let signature = Signature::from_bytes(&self.signature.clone().try_into().unwrap()) // Convert Vec to Array
             .map_err(|_| "Invalid signature format")?;
 
         let message = self.hash();
-        let context = schnorrkel::signing_context(b"nocostcoin-tx");
 
         public_key
-            .verify(context.bytes(&message), &signature)
+            .verify(&message, &signature)
             .map_err(|_| "Signature verification failed".to_string())?;
 
         Ok(())
@@ -311,12 +314,13 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::Crypto;
+    use rand::rngs::OsRng;
 
     #[test]
     fn test_native_transfer() {
-        let keypair = Crypto::generate_keypair();
-        let sender = keypair.public.to_bytes().to_vec();
+        let mut csprng = OsRng;
+        let keypair = SigningKey::generate(&mut csprng);
+        let sender = keypair.verifying_key().to_bytes().to_vec();
         let receiver = vec![4, 5, 6];
         
         let tx = Transaction::new(
@@ -331,8 +335,9 @@ mod tests {
 
     #[test]
     fn test_create_asset() {
-        let keypair = Crypto::generate_keypair();
-        let sender = keypair.public.to_bytes().to_vec();
+        let mut csprng = OsRng;
+        let keypair = SigningKey::generate(&mut csprng);
+        let sender = keypair.verifying_key().to_bytes().to_vec();
         
         let tx = Transaction::new(
             sender,

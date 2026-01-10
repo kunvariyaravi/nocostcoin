@@ -2,6 +2,7 @@ use crate::config::AppConfig;
 use crate::network::{NetworkConfig, NetworkNode, SyncMessage};
 use crate::crypto::Crypto;
 use crate::wallet::Wallet;
+use ed25519_dalek::{SigningKey, Signer};
 use crate::block::{Block, BlockHeader};
 use crate::chain::Chain;
 use crate::mempool::Mempool;
@@ -64,8 +65,8 @@ impl Node {
             .await
             .expect("Failed to create network node");
 
-        // Helper to generate deterministic keypair from a seed string
-        fn generate_deterministic_keypair(seed_str: &str) -> schnorrkel::Keypair {
+        // Helper to generate deterministic keypair from a seed string (Schnorrkel)
+        fn generate_validator_keypair(seed_str: &str) -> schnorrkel::Keypair {
             let mut seed = [0u8; 32];
             let bytes = seed_str.as_bytes();
             for (i, &b) in bytes.iter().enumerate().take(32) {
@@ -77,26 +78,55 @@ impl Node {
             secret.to_keypair()
         }
 
+        // Helper to generate deterministic Ed25519 key (Wallet)
+        fn generate_wallet_key(seed_str: &str) -> SigningKey {
+            let mut seed = [0u8; 32];
+            let bytes = seed_str.as_bytes();
+            for (i, &b) in bytes.iter().enumerate().take(32) {
+                seed[i] = b;
+            }
+            SigningKey::from_bytes(&seed)
+        }
+
         // Determine base path
         let base_path = self.config.data_dir.clone().unwrap_or_else(|| std::path::PathBuf::from("."));
 
-        // Load or create wallet
+        // 1. Initialize Validator Key (Schnorrkel) for Consensus
+        let val_filename = format!("validator_{}.key", port);
+        let val_path = base_path.join(val_filename);
+        
+        let validator_keypair = if let Some(seed) = &self.config.mining.validator_seed {
+            info!("Using deterministic validator key from config");
+            generate_validator_keypair(seed)
+        } else {
+            // Load or create validator key file
+            if val_path.exists() {
+               let bytes = std::fs::read(&val_path).expect("Failed to read validator key");
+               schnorrkel::SecretKey::from_bytes(&bytes).expect("Invalid key").to_keypair()
+            } else {
+               info!("Creating new validator key at {:?}", val_path);
+               let kp = schnorrkel::Keypair::generate();
+               std::fs::write(&val_path, kp.secret.to_bytes()).expect("Failed to save validator key");
+               kp
+            }
+        };
+
+        // 2. Initialize Wallet Key (Ed25519) for Transactions
         let wallet_filename = format!("wallet_{}.key", port);
         let wallet_path = base_path.join(wallet_filename);
         let wallet_path_str = wallet_path.to_str().unwrap();
         
-        let keypair = if let Some(seed) = &self.config.mining.validator_seed {
-            info!("Using deterministic key from config");
-            let kp = generate_deterministic_keypair(seed);
+        let wallet_keypair = if let Some(seed) = &self.config.mining.validator_seed {
+            info!("Using deterministic wallet key from seed");
+            let kp = generate_wallet_key(seed);
             
-            // Save to file just for consistency
+            // Save just for checks
             let w = Wallet::from_keypair(kp.clone());
-            if let Err(e) = w.save_to_file(wallet_path_str) {
+             if let Err(e) = w.save_to_file(wallet_path_str) {
                 warn!("Warning: Failed to save deterministic wallet: {}", e);
             }
             kp
         } else {
-            // Normal non-deterministic behavior
             match Wallet::load_from_file(wallet_path_str) {
                 Ok(w) => {
                     info!("Loaded wallet from {}", wallet_path_str);
@@ -114,7 +144,8 @@ impl Node {
         // Create Deterministic Genesis Block
         use schnorrkel::{MiniSecretKey, SecretKey};
         let genesis_seed_str = &self.config.genesis.genesis_seed;
-        let genesis_kp = generate_deterministic_keypair(genesis_seed_str);
+        let genesis_seed_str = &self.config.genesis.genesis_seed;
+        let genesis_kp = generate_validator_keypair(genesis_seed_str);
         
         let genesis_vrf_output = vec![0u8; 32];
         let genesis_vrf_proof = vec![0u8; 64];
@@ -150,7 +181,7 @@ impl Node {
         // PRE-REGISTER Configured Validators
         info!("Pre-registering initial validators...");
         for seed in &self.config.genesis.initial_validators {
-            let node_kp = generate_deterministic_keypair(seed);
+            let node_kp = generate_validator_keypair(seed);
             let node_pubkey = node_kp.public.to_bytes().to_vec();
             
             if chain.state.get_balance(&node_pubkey) == 0 {
@@ -163,7 +194,7 @@ impl Node {
         // For Devnet simplicity: ensure self has balance if we are using a configured seed
         // (The loop above likely covered us if we are in the initial list)
         // If we are NOT in the initial list, we might need funding (Faucet).
-        let my_address = keypair.public.to_bytes().to_vec();
+        let my_address = wallet_keypair.verifying_key().to_bytes().to_vec();
         if self.config.mining.validator_seed.is_some() {
              // If we rely on seed, we expect to be in genesis. 
              // Double check balance.
@@ -226,8 +257,9 @@ impl Node {
 
         // Spawn blockchain simulation task
         let blockchain_handle = tokio::spawn(async move {
-            let mut keypair = keypair;
-            let mut my_address = keypair.public.to_bytes().to_vec();
+            let mut validator_keypair = validator_keypair;
+            let mut wallet_keypair = wallet_keypair;
+            let mut my_address = wallet_keypair.verifying_key().to_bytes().to_vec();
             let mut last_slot = 0;
             let mut mempool = Mempool::new(1000);
             let mut sync_manager = SyncManager::new(sync_event_tx);
@@ -355,7 +387,7 @@ impl Node {
                                 recv_bytes,
                                 crate::transaction::TransactionData::NativeTransfer { amount },
                                 nonce + pending_nonce_offset,
-                                &keypair
+                                &wallet_keypair
                             );
                             if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
                                 network_client.broadcast_transaction(tx.clone());
@@ -408,7 +440,7 @@ impl Node {
                             receiver,
                             crate::transaction::TransactionData::NativeTransfer { amount },
                             nonce + pending_nonce_offset,
-                            &keypair
+                            &wallet_keypair
                         );
                         
                         println!("Generated tx with nonce {}", tx.nonce);
@@ -421,10 +453,10 @@ impl Node {
                     // 2. Secret Leader Election Check
                     let parent = chain.get_head();
                     let seed = crate::consensus::Consensus::compute_vrf_seed(&parent.header.vrf_output, current_slot);
-                    let (vrf_out, vrf_proof) = Crypto::vrf_sign(&keypair, &seed);
+                    let (vrf_out, vrf_proof) = Crypto::vrf_sign(&validator_keypair, &seed);
                     let vrf_output_bytes = vrf_out.to_bytes().to_vec();
                     let vrf_proof_bytes = vrf_proof.to_bytes().to_vec();
-                    let my_pubkey_bytes = keypair.public.to_bytes();
+                    let my_pubkey_bytes = validator_keypair.public.to_bytes();
 
                     if chain.validators.is_slot_leader(&my_pubkey_bytes, &vrf_output_bytes) {
                          println!("🎰 Won Secret Leader Election for slot {}", current_slot);
@@ -444,7 +476,7 @@ impl Node {
                         epoch: chain.consensus.get_epoch(current_slot),
                         vrf_output: vrf_output_bytes,
                         vrf_proof: vrf_proof_bytes,
-                        validator_pubkey: keypair.public.to_bytes().to_vec(),
+                        validator_pubkey: validator_keypair.public.to_bytes().to_vec(),
                         producer_signature: vec![],
                         state_root: "".to_string(),
                         tx_root: "".to_string(),
@@ -480,12 +512,12 @@ impl Node {
                         // VOTE for our own block
                         let context = schnorrkel::context::signing_context(b"nocostcoin-vote");
                         let message = new_block.hash.as_bytes();
-                        let signature = keypair.sign(context.bytes(message)).to_bytes().to_vec();
+                        let signature = validator_keypair.sign(context.bytes(message)).to_bytes().to_vec();
                         
                         let vote = Vote {
                             block_hash: new_block.hash.clone(),
                             slot: new_block.header.slot,
-                            validator_pubkey: keypair.public.to_bytes().to_vec(),
+                            validator_pubkey: validator_keypair.public.to_bytes().to_vec(),
                             signature,
                         };
                         
@@ -510,12 +542,12 @@ impl Node {
                         if head.hash == block.hash {
                             let context = schnorrkel::context::signing_context(b"nocostcoin-vote");
                             let message = head.hash.as_bytes();
-                            let signature = keypair.sign(context.bytes(message)).to_bytes().to_vec();
+                            let signature = validator_keypair.sign(context.bytes(message)).to_bytes().to_vec();
                             
                             let vote = Vote {
                                 block_hash: head.hash.clone(),
                                 slot: head.header.slot,
-                                validator_pubkey: keypair.public.to_bytes().to_vec(),
+                                validator_pubkey: validator_keypair.public.to_bytes().to_vec(),
                                 signature,
                             };
                             
@@ -589,7 +621,7 @@ impl Node {
                                 receiver_bytes,
                                 crate::transaction::TransactionData::NativeTransfer { amount: req.amount },
                                 nonce + pending_nonce_offset,
-                                &keypair
+                                &wallet_keypair
                             );
                             
                             let hash = hex::encode(tx.hash());
@@ -620,13 +652,11 @@ impl Node {
                         }
                         crate::api::ApiCommand::CreateWallet(respond_to) => {
                             let (wallet, mnemonic) = crate::wallet::Wallet::create_wallet();
-                            keypair = wallet.keypair;
-                            my_address = keypair.public.to_bytes().to_vec();
+                            wallet_keypair = wallet.keypair; // Update volatile keypair
+                            my_address = wallet_keypair.verifying_key().to_bytes().to_vec(); // Update volatile address
                             
                             // Save to file
-                            let wallet_storage = crate::wallet::Wallet::from_keypair(
-                                schnorrkel::Keypair::from_bytes(&keypair.to_bytes()).expect("Keypair validity")
-                            );
+                            let wallet_storage = crate::wallet::Wallet::from_keypair(wallet_keypair.clone());
                             if let Err(e) = wallet_storage.save_to_file(&wallet_path) {
                                 println!("Failed to save wallet: {}", e);
                             } else {
@@ -642,13 +672,11 @@ impl Node {
                         crate::api::ApiCommand::RecoverWallet(req, respond_to) => {
                             match crate::wallet::Wallet::recover_wallet(&req.mnemonic) {
                                 Ok(wallet) => {
-                                    keypair = wallet.keypair;
-                                    my_address = keypair.public.to_bytes().to_vec();
+                                    wallet_keypair = wallet.keypair; // Update volatile
+                                    my_address = wallet_keypair.verifying_key().to_bytes().to_vec(); // Update volatile
                                     
                                     // Save to file
-                                    let wallet_storage = crate::wallet::Wallet::from_keypair(
-                                        schnorrkel::Keypair::from_bytes(&keypair.to_bytes()).expect("Keypair validity")
-                                    );
+                                    let wallet_storage = crate::wallet::Wallet::from_keypair(wallet_keypair.clone());
                                     if let Err(e) = wallet_storage.save_to_file(&wallet_path) {
                                         println!("Failed to save wallet: {}", e);
                                     } else {
@@ -776,7 +804,7 @@ impl Node {
                                 receiver.clone(),
                                 crate::transaction::TransactionData::NativeTransfer { amount },
                                 final_nonce,
-                                &keypair
+                                &wallet_keypair
                             );
                             
                             let hash = hex::encode(tx.hash());

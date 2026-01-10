@@ -13,6 +13,7 @@ libp2p = { version = "0.54", features = ["kad", "gossipsub", "mdns", "noise", "t
 rand = "0.8"
 rand_core = "0.6"
 bip39 = "2.0"
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 
 schnorrkel = "0.11.5"
 serde = { version = "1.0.228", features = ["derive"] }
