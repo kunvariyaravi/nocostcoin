@@ -142,8 +142,6 @@ impl Node {
         };
 
         // Create Deterministic Genesis Block
-        use schnorrkel::{MiniSecretKey, SecretKey};
-        let genesis_seed_str = &self.config.genesis.genesis_seed;
         let genesis_seed_str = &self.config.genesis.genesis_seed;
         let genesis_kp = generate_validator_keypair(genesis_seed_str);
         
