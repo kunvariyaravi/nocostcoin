@@ -44,6 +44,9 @@ export default function WebsiteNavbar() {
                         </div>
 
                         <div className="hidden md:flex items-center space-x-8">
+                            <Link href="/documentation" className={`${isActive('/documentation') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
+                                Docs
+                            </Link>
                             <Link href="/about" className={`${isActive('/about') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
                                 About
                             </Link>
@@ -82,19 +85,22 @@ export default function WebsiteNavbar() {
 
             {/* Mobile Menu */}
             <div className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div className="absolute inset-0 bg-black/50" onClick={closeMenu}></div>
-                <div className={`absolute top-16 left-0 right-0 bg-white border-b border-gray-200 shadow-lg transition-transform duration-300 ${isMobileMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeMenu}></div>
+                <div className={`absolute top-16 left-0 right-0 bg-slate-900 border-b border-slate-800 shadow-lg transition-transform duration-300 ${isMobileMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
                     <div className="flex flex-col p-4 space-y-2">
-                        <Link href="/about" className="px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors" onClick={closeMenu}>
+                        <Link href="/documentation" className="px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" onClick={closeMenu}>
+                            Docs
+                        </Link>
+                        <Link href="/about" className="px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" onClick={closeMenu}>
                             About
                         </Link>
-                        <Link href="/whitepaper" className="px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors" onClick={closeMenu}>
+                        <Link href="/whitepaper" className="px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" onClick={closeMenu}>
                             Whitepaper
                         </Link>
-                        <Link href="/contact" className="px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors" onClick={closeMenu}>
+                        <Link href="/contact" className="px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" onClick={closeMenu}>
                             Contact
                         </Link>
-                        <Link href="/testnet" className="btn-primary text-center" onClick={closeMenu}>
+                        <Link href="/testnet" className="btn-primary text-center mt-2" onClick={closeMenu}>
                             Try Testnet →
                         </Link>
                     </div>

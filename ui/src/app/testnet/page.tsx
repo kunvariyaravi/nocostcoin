@@ -375,7 +375,7 @@ export default function TestnetDashboard() {
                         </p>
 
                         <a
-                            href="/blog/how-to-run-node"
+                            href="/documentation/how-to-run-node"
                             target="_blank"
                             className="w-full btn-secondary border-purple-500/50 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400 hover:text-white transition-all text-center"
                         >

@@ -89,7 +89,7 @@ export default function Home() {
                   <Link href="/whitepaper" className="btn-secondary">
                     Read Whitepaper
                   </Link>
-                  <Link href="/blog/how-to-run-node" className="btn-primary">
+                  <Link href="/documentation/how-to-run-node" className="btn-primary">
                     Run a Node
                   </Link>
                 </div>

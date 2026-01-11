@@ -18,9 +18,7 @@ export default function Whitepaper() {
                                     Version 2.1 • January 2026
                                 </p>
                             </div>
-                            <Link href="/Nocostcoin_Whitepaper.pdf" className="btn-primary flex items-center gap-2" download target="_blank">
-                                <span className="text-lg">📥</span> Download PDF
-                            </Link>
+
                         </div>
                     </div>
 

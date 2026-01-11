@@ -11,7 +11,7 @@ import {
     GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
     const pathname = usePathname();
     const [isOnline, setIsOnline] = useState(false);
 
@@ -40,10 +40,11 @@ export default function Sidebar() {
     ];
 
     return (
-        <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700/50 flex flex-col z-50">
+        <aside className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700/50 flex flex-col z-50 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}>
             {/* Logo Area */}
             <div className="p-6 border-b border-slate-700/50">
-                <Link href="/" className="flex items-center gap-2">
+                <Link href="/" className="flex items-center gap-2" onClick={onClose}>
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 shadow-lg shadow-blue-500/20 flex items-center justify-center">
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
@@ -64,6 +65,7 @@ export default function Sidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            onClick={onClose}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                                 : 'text-slate-400 hover:text-white hover:bg-slate-800'

@@ -86,12 +86,12 @@ export default function ExplorerClient({ initialBlocks }: { initialBlocks: Block
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-900/50">
                             <tr className="text-slate-500 text-xs font-medium uppercase tracking-wider border-b border-slate-700">
-                                <th className="px-6 py-4">Slot</th>
-                                <th className="px-6 py-4">Block Hash</th>
-                                <th className="px-6 py-4">Time</th>
-                                <th className="px-6 py-4">Transactions</th>
-                                <th className="px-6 py-4">Validator</th>
-                                <th className="px-6 py-4"></th>
+                                <th className="px-3 py-3 md:px-6 md:py-4">Slot</th>
+                                <th className="px-3 py-3 md:px-6 md:py-4">Block Hash</th>
+                                <th className="px-3 py-3 md:px-6 md:py-4">Time</th>
+                                <th className="hidden md:table-cell px-3 py-3 md:px-6 md:py-4">Transactions</th>
+                                <th className="hidden lg:table-cell px-3 py-3 md:px-6 md:py-4">Validator</th>
+                                <th className="px-3 py-3 md:px-6 md:py-4"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
@@ -116,30 +116,34 @@ export default function ExplorerClient({ initialBlocks }: { initialBlocks: Block
 
                                     return (
                                         <tr key={block.hash} className="group hover:bg-slate-800/50 transition-colors">
-                                            <td className="px-6 py-4">
+                                            <td className="px-3 py-3 md:px-6 md:py-4">
                                                 <div className="flex items-center gap-2">
                                                     <CubeIcon className="w-4 h-4 text-blue-500" />
                                                     <span className="font-bold text-blue-400">{block.header.slot}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="font-mono text-sm text-slate-400">{block.hash.substring(0, 16)}...</span>
+                                            <td className="px-3 py-3 md:px-6 md:py-4">
+                                                <span className="font-mono text-xs md:text-sm text-slate-400">
+                                                    {/* Mobile: 8 chars, Desktop: 16 chars */}
+                                                    <span className="md:hidden">{block.hash.substring(0, 8)}...</span>
+                                                    <span className="hidden md:inline">{block.hash.substring(0, 16)}...</span>
+                                                </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                                            <td className="px-3 py-3 md:px-6 md:py-4">
+                                                <div className="flex items-center gap-2 text-slate-400 text-xs md:text-sm">
                                                     <ClockIcon className="w-4 h-4" />
                                                     {timeString}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="hidden md:table-cell px-3 py-3 md:px-6 md:py-4">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold ${block.transactions.length > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
                                                     {block.transactions.length} txs
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-400">
+                                            <td className="hidden lg:table-cell px-3 py-3 md:px-6 md:py-4 text-sm text-slate-400">
                                                 {validator}
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-3 py-3 md:px-6 md:py-4 text-right">
                                                 <Link href={`/testnet/explorer/block/${block.hash}`} className="p-2 rounded hover:bg-slate-700 inline-block text-slate-500 hover:text-white transition-colors">
                                                     <ArrowRightIcon className="w-5 h-5" />
                                                 </Link>

@@ -110,7 +110,7 @@ export default function NetworkPage() {
                                     Start a local node to see it here
                                 </p>
                                 <a
-                                    href="/blog/how-to-run-node"
+                                    href="/documentation/how-to-run-node"
                                     target="_blank"
                                     className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
                                 >
