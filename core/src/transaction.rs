@@ -206,8 +206,7 @@ impl Transaction {
         let public_key = VerifyingKey::from_bytes(&self.sender.clone().try_into().unwrap())
             .map_err(|_| "Invalid sender public key")?;
 
-        let signature = Signature::from_bytes(&self.signature.clone().try_into().unwrap()) // Convert Vec to Array
-            .map_err(|_| "Invalid signature format")?;
+        let signature = Signature::from_bytes(&self.signature.clone().try_into().map_err(|_| "Invalid signature length")?);
 
         let message = self.hash();
 

@@ -966,7 +966,8 @@ impl Node {
                         crate::api::ApiCommand::RegisterValidator(stake, respond_to) => {
                              // Create and sign a transaction to register as validator
                              // 1. Get address info
-                             let sender_pubkey_bytes = keypair.public.to_bytes().to_vec();
+                             // 1. Get address info
+                             let sender_pubkey_bytes = wallet_keypair.verifying_key().to_bytes().to_vec();
                              
                              let balance = chain.state.get_balance(&sender_pubkey_bytes);
                              let nonce = chain.state.get_nonce(&sender_pubkey_bytes);
@@ -982,7 +983,7 @@ impl Node {
                                  vec![], // No receiver for registration
                                  crate::transaction::TransactionData::RegisterValidator { stake },
                                  nonce,
-                                 &keypair,
+                                 &wallet_keypair,
                              );
                              
                              // 3. Add to Mempool

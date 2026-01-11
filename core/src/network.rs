@@ -406,11 +406,11 @@ impl NetworkNode {
                 }
             }
             NocostcoinBehaviourEvent::Kademlia(kad::Event::RoutingUpdated {
-                peer,
+                peer: _peer,
                 addresses: _addresses,
                 ..
             }) => {
-                // debug!("Routing updated for peer {}: {:?}", peer, addresses);
+                // debug!("Routing updated for peer {}: {:?}", _peer, _addresses);
             }
             NocostcoinBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
                 info!("Identified peer {}: {:?} (Protocol: {:?})", peer_id, info.agent_version, info.protocol_version);

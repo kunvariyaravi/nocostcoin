@@ -284,27 +284,41 @@ function SendView({ onBack, address, balance, onSuccess }: any) {
         try {
             if (!wallet?.publicKey) throw new Error("Wallet not fully loaded");
 
-            // 1. Create and Sign Transaction Locally
-            // We use the nonce from the balance fetch (nonce state needs to be added to WalletPage)
-            // But state might be stale, better to use the one from balance or fetch fresh?
-            // Existing 'balance' state only holds number. We need 'nonce' too.
-            // Let's assume we add 'nonce' state to WalletPage or fetch it here.
-
-            // Fetch fresh nonce just to be safe
+            // 1. Fetch Nonce
+            console.log("Fetching nonce for", wallet.address);
             const accountRes = await fetch(`/api/node/account/${wallet.address}`, { cache: 'no-store' });
-            if (!accountRes.ok) throw new Error('Failed to fetch nonce');
-            const account = await accountRes.json();
+
+            const accountResText = await accountRes.text();
+            console.log("Nonce fetch response:", accountRes.status, accountResText);
+
+            if (!accountRes.ok) {
+                throw new Error(`Failed to fetch nonce: ${accountRes.status} ${accountResText}`);
+            }
+
+            if (!accountResText) {
+                throw new Error("Nonce fetch returned empty response");
+            }
+
+            let account;
+            try {
+                account = JSON.parse(accountResText);
+            } catch (jsonErr: any) {
+                throw new Error(`Nonce fetch JSON parse error: ${jsonErr.message}`);
+            }
+
             const currentNonce = account.nonce;
 
+            // 2. Sign
             const signedTx = await BrowserWallet.createAndSignTransaction(
                 wallet,
                 receiver,
-                parseInt(amount), // Assuming integer amount for now or convert float to atomic units if needed. Rust logic used NativeTransfer { amount } which is u64.
+                parseInt(amount), // Assuming integer amount for now
                 currentNonce
             );
 
-            // 2. Send Signed TX to Backend
-            console.log("Sending transaction to /api/node/transaction/send", signedTx);
+            console.log("Sending transaction...", signedTx);
+
+            // 3. Send Signed TX to Backend
             const res = await fetch('/api/node/transaction/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -314,6 +328,10 @@ function SendView({ onBack, address, balance, onSuccess }: any) {
             const text = await res.text();
             console.log("Response status:", res.status);
             console.log("Response text:", text);
+
+            if (!text) {
+                throw new Error(`Send endpoint returned empty response (Status: ${res.status})`);
+            }
 
             let data;
             try {
