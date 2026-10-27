@@ -112,6 +112,14 @@ async fn main() {
         return;
     }
 
+    // Refuse to start on a genesis that was never finalised, before touching
+    // the data directory. Without this the node panics deep inside startup and
+    // Docker restart-loops on a config mistake.
+    if let Err(e) = config.genesis.validate() {
+        eprintln!("FATAL: {}", e);
+        std::process::exit(1);
+    }
+
     // 4. Initialize Metrics
     // Base Metrics Port = 9090 + (Node Port - 9000)
     // Node 9000 -> Metrics 9090

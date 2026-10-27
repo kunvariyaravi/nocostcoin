@@ -46,6 +46,32 @@ pub struct MiningConfig {
     pub validator_seed: Option<String>, // For deterministic testnets
 }
 
+impl GenesisConfig {
+    /// Check that the genesis is usable, before the node creates any files.
+    ///
+    /// Catches a genesis that was never finalised - the shipped mainnet configs
+    /// carry `REPLACE_WITH_...` placeholders - as well as malformed entries.
+    /// Not called on the ceremony path, which legitimately runs before the
+    /// real keys are known.
+    pub fn validate(&self) -> Result<(), String> {
+        for (label, entries) in [
+            ("initial_validators", &self.initial_validators),
+            ("initial_funded_accounts", &self.initial_funded_accounts),
+        ] {
+            for entry in entries {
+                if entry.len() != 64 || !entry.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(format!(
+                        "genesis.{label} entry '{}' is not a 64-character hex key - run the \
+                         genesis ceremony (nocostcoin --identity) and paste the real values in",
+                        entry
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl AppConfig {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
@@ -142,6 +168,40 @@ mod tests {
         }
 
         assert!(checked > 0, "no config files found in {}", dir.display());
+    }
+
+    /// An un-finalised genesis must be rejected before the node starts, and a
+    /// devnet config with no genesis keys must still be accepted.
+    #[test]
+    fn test_genesis_validate() {
+        let mainnet = AppConfig::load_from_file("../config/mainnet-gcp.toml").unwrap();
+        assert!(
+            mainnet.genesis.validate().is_err(),
+            "the shipped mainnet genesis still has placeholders and must not validate"
+        );
+        assert!(
+            mainnet.genesis.validate().unwrap_err().contains("ceremony"),
+            "the error should tell the operator what to do"
+        );
+
+        let devnet = AppConfig::load_from_file("../config/nocostcoin.toml").unwrap();
+        assert!(
+            devnet.genesis.validate().is_ok(),
+            "a devnet config with no genesis keys is valid"
+        );
+
+        let mut filled = mainnet.genesis.clone();
+        filled.initial_validators = vec!["ab".repeat(32)];
+        filled.initial_funded_accounts = vec!["cd".repeat(32)];
+        assert!(filled.validate().is_ok());
+
+        let mut not_hex = filled.clone();
+        not_hex.initial_validators = vec!["zz".repeat(32)];
+        assert!(not_hex.validate().is_err());
+
+        let mut wrong_len = filled.clone();
+        wrong_len.initial_funded_accounts = vec!["ab".repeat(31)];
+        assert!(wrong_len.validate().is_err());
     }
 
     /// The mainnet configs must agree on the genesis, otherwise the nodes fork.
