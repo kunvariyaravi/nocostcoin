@@ -11,7 +11,7 @@ listen_addr = "/ip4/0.0.0.0/tcp/9000"
 # >>> CANONICAL GENESIS - must be byte-identical on all nodes <<<
 [genesis]
 chain_id = 1
-genesis_time = 1789888215871
+genesis_time = 1793120271511
 genesis_seed = "3798dd950fe5753bf705c540701345e4b8910f09f34f73878e00751bb7a5da9e"
 initial_validators = [
     "128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c",
