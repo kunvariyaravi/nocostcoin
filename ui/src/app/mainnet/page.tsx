@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import {
     PaperAirplaneIcon,
     ArrowPathIcon,
+    BanknotesIcon,
     CpuChipIcon,
     DocumentDuplicateIcon,
     CheckIcon,
@@ -39,6 +39,10 @@ export default function MainnetDashboard() {
     const [sending, setSending] = useState(false);
     const [txStatus, setTxStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
     const [confirmTransaction, setConfirmTransaction] = useState<TransactionData | null>(null);
+
+    // Faucet State
+    const [faucetLoading, setFaucetLoading] = useState(false);
+    const [faucetStatus, setFaucetStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
     // Receive State
     const [copied, setCopied] = useState(false);
@@ -165,6 +169,33 @@ export default function MainnetDashboard() {
         }
     };
 
+    const handleFaucet = async () => {
+        if (!wallet?.address) return;
+        setFaucetLoading(true);
+        setFaucetStatus(null);
+
+        try {
+            const res = await fetch('/api/node/faucet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ address: wallet.address })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setFaucetStatus({ type: 'success', msg: `Received ${data.amount} NCC!` });
+                fetchBalance();
+            } else {
+                const err = await res.json();
+                setFaucetStatus({ type: 'error', msg: typeof err === 'object' ? (err.error || JSON.stringify(err)) : err });
+            }
+        } catch (e) {
+            setFaucetStatus({ type: 'error', msg: 'Faucet request failed' });
+        } finally {
+            setFaucetLoading(false);
+        }
+    };
+
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
@@ -193,7 +224,7 @@ export default function MainnetDashboard() {
                     <WalletIcon className="w-20 h-20 text-slate-700 mx-auto mb-6" />
                     <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
                     <p className="text-slate-400 mb-6">
-                        Connect your browser wallet to send transactions and interact with the Mainnet.
+                        Connect your browser wallet to send transactions, use the faucet, and interact with the Mainnet.
                     </p>
                     <p className="text-sm text-slate-500">
                         Click &quot;Connect Wallet&quot; in the top-right corner to get started.
@@ -303,37 +334,30 @@ export default function MainnetDashboard() {
                     requirePassword={false} // Enable when fully implemented
                 />
 
-                {/* 2. Live Chain Card */}
+                {/* 2. Faucet Card */}
                 <div className="card border-violet-500/20 bg-slate-800/50 flex flex-col">
                     <div className="flex items-center gap-3 mb-4 text-violet-400">
-                        <BoltIcon className="w-6 h-6" />
-                        <h3 className="text-lg font-bold">Live Chain</h3>
+                        <BanknotesIcon className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">Faucet</h3>
                     </div>
                     <div className="flex-1 flex flex-col justify-between">
                         <p className="text-sm text-slate-400 mb-4">
-                            The mainnet is live. There is no faucet - this chain does not
-                            distribute tokens.
+                            Request 1,000 free NCC Mainnet tokens. Available once every 24 hours per wallet.
                         </p>
 
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-400">Block height</span>
-                                <span className="font-mono text-violet-300">
-                                    {stats ? stats.height.toLocaleString() : '-'}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-400">Your balance</span>
-                                <span className="font-mono text-violet-300">
-                                    {balance.toLocaleString()} NCC
-                                </span>
-                            </div>
-                            <Link
-                                href="/mainnet/explorer"
-                                className="w-full btn-secondary border-violet-500/50 text-violet-300 hover:bg-violet-500/10 hover:border-violet-400 hover:text-white transition-all text-center"
+                        <div className="space-y-4">
+                            {faucetStatus && (
+                                <div className={`p-2 rounded text-xs border ${faucetStatus.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                                    <p className="break-all">{faucetStatus.msg}</p>
+                                </div>
+                            )}
+                            <button
+                                onClick={handleFaucet}
+                                disabled={faucetLoading || !wallet}
+                                className="w-full btn-secondary border-violet-500/50 text-violet-300 hover:bg-violet-500/10 hover:border-violet-400 hover:text-white transition-all"
                             >
-                                Open Explorer
-                            </Link>
+                                {faucetLoading ? 'Requesting...' : 'Request 1,000 NCC'}
+                            </button>
                         </div>
                     </div>
                 </div>
