@@ -174,32 +174,32 @@ mod tests {
     /// devnet config with no genesis keys must still be accepted.
     #[test]
     fn test_genesis_validate() {
+        // The shipped mainnet genesis is finalised.
         let mainnet = AppConfig::load_from_file("../config/mainnet-gcp.toml").unwrap();
         assert!(
-            mainnet.genesis.validate().is_err(),
-            "the shipped mainnet genesis still has placeholders and must not validate"
-        );
-        assert!(
-            mainnet.genesis.validate().unwrap_err().contains("ceremony"),
-            "the error should tell the operator what to do"
+            mainnet.genesis.validate().is_ok(),
+            "the shipped mainnet genesis should be finalised"
         );
 
+        // A genesis that was never finalised must be rejected, with an error
+        // that tells the operator what to do.
+        let mut placeholder = mainnet.genesis.clone();
+        placeholder.initial_validators = vec!["REPLACE_WITH_VALIDATOR_PUBKEY_64_HEX".to_string()];
+        let err = placeholder.validate().unwrap_err();
+        assert!(err.contains("ceremony"), "error should say what to do: {}", err);
+
+        // Devnet has no genesis keys at all, which is valid.
         let devnet = AppConfig::load_from_file("../config/nocostcoin.toml").unwrap();
         assert!(
             devnet.genesis.validate().is_ok(),
             "a devnet config with no genesis keys is valid"
         );
 
-        let mut filled = mainnet.genesis.clone();
-        filled.initial_validators = vec!["ab".repeat(32)];
-        filled.initial_funded_accounts = vec!["cd".repeat(32)];
-        assert!(filled.validate().is_ok());
-
-        let mut not_hex = filled.clone();
+        let mut not_hex = mainnet.genesis.clone();
         not_hex.initial_validators = vec!["zz".repeat(32)];
         assert!(not_hex.validate().is_err());
 
-        let mut wrong_len = filled.clone();
+        let mut wrong_len = mainnet.genesis.clone();
         wrong_len.initial_funded_accounts = vec!["ab".repeat(31)];
         assert!(wrong_len.validate().is_err());
     }

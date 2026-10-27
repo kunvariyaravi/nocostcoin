@@ -14,10 +14,10 @@ chain_id = 1
 genesis_time = 1789888215871
 genesis_seed = "3798dd950fe5753bf705c540701345e4b8910f09f34f73878e00751bb7a5da9e"
 initial_validators = [
-    "REPLACE_WITH_VALIDATOR_PUBKEY_64_HEX",
+    "128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c",
 ]
 initial_funded_accounts = [
-    "REPLACE_WITH_VALIDATOR_WALLET_64_HEX",
+    "dd5b099c02335b7e4f3d6f5e36ea85f9d02117318d52ce7e1fa3cb54dfc2ebeb",
 ]
 
 [mining]
