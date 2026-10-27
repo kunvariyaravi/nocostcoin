@@ -1,0 +1,14 @@
+# Only the UI is deployed - the Vercel project's Root Directory is `ui`.
+# Keep the upload small: the Rust node, local databases and docs are irrelevant
+# to the Next.js build.
+core/
+deploy/
+docs/
+ops/
+config/
+data/
+nocostcoin_db*/
+docker-compose*.yml
+*.bat
+*.sh
+*.md

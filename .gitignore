@@ -39,8 +39,11 @@ dist/
 
 # Tooling
 .commandcode/
+.vercel/
 
 # Testing
 .nyc_output
 coverage/
 
+.vercel
+.env*
