@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const backendUrl = NODE_API_URL;
-        const response = await fetch(`${backendUrl}/validators`);
+        const response = await fetch(`${backendUrl}/validators`, { cache: 'no-store' });
 
         if (!response.ok) {
             // If not found or error, return empty list or error

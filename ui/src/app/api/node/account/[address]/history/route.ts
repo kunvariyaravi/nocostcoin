@@ -11,7 +11,7 @@ export async function GET(
         const address = params.address;
         const backendUrl = NODE_API_URL;
 
-        const response = await fetch(`${backendUrl}/account/${address}/history`);
+        const response = await fetch(`${backendUrl}/account/${address}/history`, { cache: 'no-store' });
 
         if (!response.ok) {
             // If 500 or timeout, return empty list gracefully or error?

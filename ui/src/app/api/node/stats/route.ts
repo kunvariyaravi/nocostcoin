@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const backendUrl = NODE_API_URL;
-        const response = await fetch(`${backendUrl}/stats`);
+        const response = await fetch(`${backendUrl}/stats`, { cache: 'no-store' });
 
         if (!response.ok) {
             return NextResponse.json({ error: 'Failed to fetch stats' }, { status: response.status });

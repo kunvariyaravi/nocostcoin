@@ -11,7 +11,7 @@ export async function GET(
         const hash = params.hash;
         const backendUrl = NODE_API_URL;
 
-        const response = await fetch(`${backendUrl}/transaction/${hash}`);
+        const response = await fetch(`${backendUrl}/transaction/${hash}`, { cache: 'no-store' });
 
         if (!response.ok) {
             if (response.status === 404) {

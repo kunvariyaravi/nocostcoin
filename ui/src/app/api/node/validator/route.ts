@@ -16,7 +16,7 @@ export async function GET(request: Request) {
             url += `?address=${encodeURIComponent(address)}`;
         }
 
-        const response = await fetch(url);
+        const response = await fetch(url, { cache: 'no-store' });
 
         if (!response.ok) {
             // If the endpoint returns 404, it means the user is not a validator
