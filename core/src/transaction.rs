@@ -219,8 +219,22 @@ impl Transaction {
 
     /// Validate transaction logic (amount, addresses, data)
     pub fn validate_logic(&self) -> Result<(), String> {
-        if self.sender.is_empty() {
-            return Err("Sender address is empty".to_string());
+        if self.sender.len() != 32 {
+            return Err(format!(
+                "Sender must be 32 bytes, got {}",
+                self.sender.len()
+            ));
+        }
+
+        // The receiver is optional - some transaction types have none - but when
+        // present it must be a full key. A short receiver gets accepted by the
+        // mempool and then fails when the block is applied, and because the
+        // mempool keeps offering it, mining stalls for good.
+        if !self.receiver.is_empty() && self.receiver.len() != 32 {
+            return Err(format!(
+                "Receiver must be 32 bytes, got {}",
+                self.receiver.len()
+            ));
         }
 
         match &self.data {
@@ -319,13 +333,61 @@ mod tests {
     fn test_native_transfer() {
         let mut csprng = OsRng;
         let keypair = SigningKey::generate(&mut csprng);
+        let receiver_keypair = SigningKey::generate(&mut csprng);
         let sender = keypair.verifying_key().to_bytes().to_vec();
-        let receiver = vec![4, 5, 6];
-        
+        let receiver = receiver_keypair.verifying_key().to_bytes().to_vec();
+
         let tx = Transaction::new(
             sender,
             receiver,
             TransactionData::NativeTransfer { amount: 100 },
+            0,
+            &keypair,
+        );
+        assert!(tx.validate().is_ok());
+    }
+
+    /// A short receiver used to be accepted into the mempool and then fail when
+    /// the block was applied, which stalled mining permanently.
+    #[test]
+    fn test_validate_rejects_short_receiver() {
+        let mut csprng = OsRng;
+        let keypair = SigningKey::generate(&mut csprng);
+        let sender = keypair.verifying_key().to_bytes().to_vec();
+
+        let tx = Transaction::new(
+            sender,
+            vec![171], // 1 byte
+            TransactionData::NativeTransfer { amount: 1 },
+            0,
+            &keypair,
+        );
+
+        let err = tx.validate().unwrap_err();
+        assert!(
+            err.contains("Receiver must be 32 bytes"),
+            "unexpected error: {}",
+            err
+        );
+    }
+
+    /// An empty receiver stays valid - several transaction types have none.
+    #[test]
+    fn test_validate_allows_empty_receiver() {
+        let mut csprng = OsRng;
+        let keypair = SigningKey::generate(&mut csprng);
+        let sender = keypair.verifying_key().to_bytes().to_vec();
+
+        let tx = Transaction::new(
+            sender,
+            vec![],
+            TransactionData::CreateAsset {
+                name: "Gold".to_string(),
+                symbol: "GLD".to_string(),
+                supply: 1000,
+                decimals: 8,
+                metadata: vec![],
+            },
             0,
             &keypair,
         );

@@ -59,8 +59,17 @@ fn register_genesis_validator(
         return;
     }
     seen.push(pubkey.clone());
+
+    // Genesis funding is persisted, so credit it only once.
     if chain.state.get_balance(&pubkey) == 0 {
         chain.state.set_balance(pubkey.clone(), 1_000_000);
+    }
+
+    // The validator set lives in memory only. It has to be rebuilt on every
+    // start, so it must not be tied to the balance check: after a restart the
+    // balance is already on disk, and skipping this left the set empty and the
+    // node unable to win any slot ever again.
+    if chain.validators.get_validator(&pubkey).is_none() {
         let _ = chain.validators.register_validator(pubkey, 1_000_000, 0);
     }
 }
