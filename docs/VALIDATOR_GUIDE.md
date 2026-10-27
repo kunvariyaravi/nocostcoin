@@ -102,25 +102,21 @@ curl -s http://127.0.0.1:8000/health
 
 ## 5. Staking
 
-To become an active validator, you need to stake tokens.
+> **Stake-based registration is not available yet.** `/validator/register`
+> returns an error: leader election matches the validator's Schnorrkel consensus
+> key, but the registration transaction can only prove control of the Ed25519
+> wallet. Validators must be listed in the genesis `initial_validators` list.
+> See `LAUNCH.md`.
+
 1.  **Get Tokens**: Use the [Testnet Faucet](https://faucet.nocostcoin.org).
-2.  **Register**: Send a `RegisterValidator` transaction using the API or CLI.
+2.  **Register**: not supported yet - see the note above.
+
+If the node runs with `NOCOSTCOIN_API_TOKEN` set, add the bearer token to any
+write request, for example:
 
 ```bash
-# Example using curl to register (if you have the CLI tool locally)
-curl -X POST http://127.0.0.1:8000/validator/register \
-     -H "Content-Type: application/json" \
-     -d '{"stake": 1000}'
-```
-
-If the node runs with `NOCOSTCOIN_API_TOKEN` set, add the bearer token to the
-request:
-
-```bash
-curl -X POST http://127.0.0.1:8000/validator/register \
-     -H "Authorization: Bearer $NOCOSTCOIN_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"stake": 1000}'
+curl -X POST http://127.0.0.1:8000/wallet/new \
+     -H "Authorization: Bearer $NOCOSTCOIN_API_TOKEN"
 ```
 
 Because Nocostcoin uses **Secret Leader Election**, your node will automatically start producing blocks when selected, without revealing your identity beforehand!

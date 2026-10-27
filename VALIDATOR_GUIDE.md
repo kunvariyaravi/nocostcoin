@@ -53,25 +53,16 @@ curl -s http://127.0.0.1:8000/health
 ```
 
 ## Step 5: Become a Validator (Staking)
-To become a validator, you need to stake coins.
+
+> **Stake-based registration is not available yet.** `/validator/register` now
+> returns an error. Leader election matches the validator's Schnorrkel consensus
+> key, but the registration transaction can only prove control of the Ed25519
+> wallet, so it used to add an unrelated key to the validator set and dilute the
+> real validators' slot odds. Validators must be listed in the genesis
+> `initial_validators` list. See `LAUNCH.md`.
 
 1.  **Generate a Wallet**:
     ```bash
     curl -X POST http://127.0.0.1:8000/wallet/new
     ```
 2.  **Get Testnet Coins**: Ask for coins in the community channel or use the faucet (if available).
-3.  **Register Validator**:
-    ```bash
-    curl -X POST http://127.0.0.1:8000/validator/register \
-         -H "Content-Type: application/json" \
-         -d '{"stake": 1000}'
-    ```
-
-If the node runs with `NOCOSTCOIN_API_TOKEN` set, add the bearer token to the
-requests above - `wallet/new` and `validator/register` are guarded by it:
-```bash
-curl -X POST http://127.0.0.1:8000/validator/register \
-         -H "Authorization: Bearer $NOCOSTCOIN_API_TOKEN" \
-         -H "Content-Type: application/json" \
-         -d '{"stake": 1000}'
-```

@@ -31,30 +31,45 @@ Vercel's server environment.
 - [x] P0-4 regression tests: all shipped configs parse, all mainnet configs
       share one genesis, no mainnet config sets a validator seed
 - [x] .gitignore: `*.key`, `data/`, token, logs covered
-- [ ] P0-1 ceremony RUN: paste the 3 pubkeys + wallet addresses into
+- [ ] P0-1 ceremony RUN: paste this validator's pubkey + wallet address into
       `config/genesis.toml` and the four mainnet configs
 - [ ] P0-2 secured binary: `sec-build.log` = Finished, re-run security-test.py
 - [ ] P0-5 networking: public IP + PeerId in bootstrap, firewall open 9000 TCP
 - [ ] P0-6 git tag: commit ONLY launch files, tag mainnet-genesis-v1
 
-## Ceremony (run on each validator's own machine)
+## Ceremony (run on the validator's own machine)
+
+The launch ships **one validator**, the GCP node. It wins every slot, so blocks
+come at the full rate.
 
 1. Build the secured binary (wait for `C:\tmp\sec-build.log` = Finished release).
-2. Generate the identity. On Windows: `genesis-ceremony.bat 9000` (9001/9002 for
-   the other validators). On the GCP VM:
-   `MODE=identity bash ~/setup-validator.sh`.
-   Both print:
+2. Generate the identity ON the machine that will run it. On the GCP VM:
+
+   ```bash
+   MODE=identity bash ~/setup-validator.sh
+   ```
+
+   On Windows: `genesis-ceremony.bat`. Both print only the public values:
 
    ```
    VALIDATOR_PUBKEY=<64 hex>   -> genesis.toml initial_validators
    WALLET_ADDRESS=<64 hex>     -> genesis.toml initial_funded_accounts
    ```
 
-3. BACK UP the validator key offline (USB). Never commit, never share.
-4. Copy each pubkey/wallet address into `config/genesis.toml` AND
-   `config/mainnet.toml`, `mainnet2.toml`, `mainnet3.toml`, `mainnet-gcp.toml`
-   (byte-identical `[genesis]`).
+3. BACK UP the validator key offline (USB). Never commit, never share. It is the
+   node's consensus identity and it cannot be rotated without a new genesis.
+4. Paste both values into `config/genesis.toml` AND `config/mainnet.toml`,
+   `mainnet2.toml`, `mainnet3.toml`, `mainnet-gcp.toml` (byte-identical
+   `[genesis]`).
 5. Old test DBs are already wiped. Fresh DBs are created on first start.
+
+### Adding validators later
+
+`/validator/register` is disabled. It can only attest to the Ed25519 wallet,
+while leader election matches the Schnorrkel consensus key, so registering would
+add an unrelated key to the validator set and dilute the real validator's slot
+odds. Adding a validator needs a registration transaction that carries and
+proves ownership of a consensus key - see "Not implemented" in `SECURITY.md`.
 
 ## Launch
 

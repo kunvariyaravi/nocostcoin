@@ -1118,40 +1118,20 @@ impl Node {
                              }).collect();
                              let _ = respond_to.send(validators);
                         }
-                        crate::api::ApiCommand::RegisterValidator(stake, respond_to) => {
-                             // Create and sign a transaction to register as validator
-                             // 1. Get address info
-                             // 1. Get address info
-                             let sender_pubkey_bytes = wallet_keypair.verifying_key().to_bytes().to_vec();
-                             
-                             let balance = chain.state.get_balance(&sender_pubkey_bytes);
-                             let nonce = chain.state.get_nonce(&sender_pubkey_bytes);
-                             
-                             if balance < stake {
-                                 let _ = respond_to.send(Err("Insufficient balance".to_string()));
-                                 continue;
-                             }
-                             
-                             // 2. Create Transaction
-                             let tx = crate::transaction::Transaction::new(
-                                 sender_pubkey_bytes.clone(),
-                                 vec![], // No receiver for registration
-                                 crate::transaction::TransactionData::RegisterValidator { stake },
-                                 nonce,
-                                 &wallet_keypair,
-                             );
-                             
-                             // 3. Add to Mempool
-                             match mempool.add_transaction(tx.clone(), &chain.state) {
-                                 Ok(_) => {
-                                      // 4. Broadcast
-                                      network_client.broadcast_transaction(tx.clone());
-                                      let _ = respond_to.send(Ok(hex::encode(tx.hash())));
-                                 },
-                                 Err(e) => {
-                                      let _ = respond_to.send(Err(e));
-                                 }
-                             }
+                        crate::api::ApiCommand::RegisterValidator(_stake, respond_to) => {
+                            // Stake-based registration cannot work yet. Leader
+                            // election matches the Schnorrkel consensus key, but
+                            // this transaction can only attest to the Ed25519
+                            // wallet, so registering would add an unrelated key
+                            // to the validator set, dilute the real validators'
+                            // slot odds and burn the stake. Refuse loudly rather
+                            // than quietly damaging the chain.
+                            warn!("Rejected /validator/register: validators must be listed in the genesis");
+                            let _ = respond_to.send(Err(
+                                "Stake-based validator registration is not supported. A validator \
+                                 must be listed in the genesis initial_validators list before launch."
+                                    .to_string(),
+                            ));
                         }
                     }
                 }

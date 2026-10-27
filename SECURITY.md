@@ -70,6 +70,13 @@ These are real gaps, not theoretical ones.
   never committed.
 - **No slashing evidence gossip.** Equivocation is detected locally only; peers
   are not told.
+- **`/validator/register` is disabled.** Leader election matches the Schnorrkel
+  consensus key, but the registration transaction can only attest to the Ed25519
+  wallet. Registering therefore added an unrelated key to the validator set,
+  diluted the real validators' slot odds and burned the stake. A working version
+  needs a registration transaction that carries a consensus public key and a
+  signature proving ownership of it. Until then validators must be listed in the
+  genesis.
 - **The faucet uses the node's hot wallet.** If it is enabled publicly, the
   node's wallet pays out. Use a dedicated faucet key before relying on it.
 - **`chain_id` is not part of the genesis block hash**, so the genesis hash does

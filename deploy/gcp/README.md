@@ -64,24 +64,20 @@ WALLET_ADDRESS=<64 hex>
 
 Back up the key files on the VM now (`/opt/nocostcoin/nocostcoin/data/validator/`):
 `validator_9000.key`, `wallet_9000.key`, `libp2p_identity.key`. They are the
-node's identity - never commit or copy them anywhere.
-
-Do this on **every** validator, then collect all three pubkeys.
+node's identity - never commit or copy them anywhere. The consensus key cannot
+be rotated without a new genesis.
 
 ## 3. Freeze the genesis
 
-Paste the values into `config/genesis.toml`:
+The launch has a single validator, so there is one entry in each list. Paste the
+values into `config/genesis.toml`:
 
 ```toml
 initial_validators = [
-    "<validator 1 VALIDATOR_PUBKEY>",
-    "<validator 2 VALIDATOR_PUBKEY>",
-    "<validator 3 VALIDATOR_PUBKEY>",
+    "<VALIDATOR_PUBKEY>",
 ]
 initial_funded_accounts = [
-    "<validator 1 WALLET_ADDRESS>",
-    "<validator 2 WALLET_ADDRESS>",
-    "<validator 3 WALLET_ADDRESS>",
+    "<WALLET_ADDRESS>",
 ]
 ```
 
@@ -94,6 +90,9 @@ Then push it:
 ```powershell
 git add config/ && git commit -m "Freeze mainnet genesis" && git push
 ```
+
+Adding a second validator later is not supported yet - `/validator/register` is
+disabled because it cannot prove ownership of a consensus key. See `LAUNCH.md`.
 
 ## 4. Start the chain
 
