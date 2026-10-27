@@ -26,6 +26,160 @@ enum CliCommand {
     Help,
 }
 
+/// Generate a deterministic keypair from a seed string (Schnorrkel)
+fn generate_validator_keypair(seed_str: &str) -> SchnorrkelKeypair {
+    let mut seed = [0u8; 32];
+    let bytes = seed_str.as_bytes();
+    for (i, &b) in bytes.iter().enumerate().take(32) {
+        seed[i] = b;
+    }
+    let mini_secret = schnorrkel::MiniSecretKey::from_bytes(&seed)
+        .expect("Failed to create secret from seed");
+    let secret = mini_secret.expand(schnorrkel::ExpansionMode::Ed25519);
+    secret.to_keypair()
+}
+
+/// Generate a deterministic Ed25519 key (Wallet)
+fn generate_wallet_key(seed_str: &str) -> SigningKey {
+    let mut seed = [0u8; 32];
+    let bytes = seed_str.as_bytes();
+    for (i, &b) in bytes.iter().enumerate().take(32) {
+        seed[i] = b;
+    }
+    SigningKey::from_bytes(&seed)
+}
+
+/// Register a founding validator with the genesis stake, once per public key.
+fn register_genesis_validator(
+    chain: &mut Chain,
+    seen: &mut Vec<Vec<u8>>,
+    pubkey: Vec<u8>,
+) {
+    if seen.contains(&pubkey) {
+        return;
+    }
+    seen.push(pubkey.clone());
+    if chain.state.get_balance(&pubkey) == 0 {
+        chain.state.set_balance(pubkey.clone(), 1_000_000);
+        let _ = chain.validators.register_validator(pubkey, 1_000_000, 0);
+    }
+}
+
+/// The consensus and transaction identity of a node.
+pub struct NodeIdentity {
+    /// Schnorrkel keypair - the consensus/VRF identity.
+    pub validator_keypair: SchnorrkelKeypair,
+    /// Ed25519 keypair - the transaction wallet.
+    pub wallet_keypair: SigningKey,
+    /// Hex-ready Schnorrkel public key. This is what goes into the genesis
+    /// `initial_validators` list.
+    pub validator_pubkey: Vec<u8>,
+    /// Hex-ready Ed25519 address. This is what goes into the genesis
+    /// `initial_funded_accounts` list.
+    pub wallet_address: Vec<u8>,
+}
+
+/// Load the node's consensus and wallet keys, creating them on first run.
+///
+/// Keys are persisted under `base_path` so the node keeps its identity across
+/// restarts. `mining.validator_seed` derives both keys deterministically
+/// instead and is only intended for devnet/testnet.
+pub fn load_or_create_identity(
+    config: &AppConfig,
+    base_path: &std::path::Path,
+) -> Result<NodeIdentity, String> {
+    std::fs::create_dir_all(base_path)
+        .map_err(|e| format!("Failed to create data dir {:?}: {}", base_path, e))?;
+
+    let port = config.network.port;
+
+    let validator_keypair = if let Some(seed) = &config.mining.validator_seed {
+        info!("Using deterministic validator key from config");
+        generate_validator_keypair(seed)
+    } else {
+        let val_path = base_path.join(format!("validator_{}.key", port));
+        if val_path.exists() {
+            let bytes = std::fs::read(&val_path)
+                .map_err(|e| format!("Failed to read {}: {}", val_path.display(), e))?;
+            schnorrkel::SecretKey::from_bytes(&bytes)
+                .map_err(|e| format!("Invalid validator key {}: {}", val_path.display(), e))?
+                .to_keypair()
+        } else {
+            info!("Creating new validator key at {:?}", val_path);
+            let kp = schnorrkel::Keypair::generate();
+            std::fs::write(&val_path, kp.secret.to_bytes())
+                .map_err(|e| format!("Failed to save {}: {}", val_path.display(), e))?;
+            kp
+        }
+    };
+
+    let wallet_path = base_path.join(format!("wallet_{}.key", port));
+    let wallet_keypair = if let Some(seed) = &config.mining.validator_seed {
+        info!("Using deterministic wallet key from seed");
+        let kp = generate_wallet_key(seed);
+        let w = Wallet::from_keypair(kp.clone());
+        if let Err(e) = w.save_to_file(wallet_path.to_str().unwrap()) {
+            warn!("Warning: Failed to save deterministic wallet: {}", e);
+        }
+        kp
+    } else {
+        match Wallet::load_from_file(wallet_path.to_str().unwrap()) {
+            Ok(w) => {
+                info!("Loaded wallet from {}", wallet_path.display());
+                w.keypair
+            }
+            Err(_) => {
+                info!("Creating new wallet at {}", wallet_path.display());
+                let w = Wallet::new();
+                w.save_to_file(wallet_path.to_str().unwrap())
+                    .map_err(|e| format!("Failed to save {}: {}", wallet_path.display(), e))?;
+                w.keypair
+            }
+        }
+    };
+
+    Ok(NodeIdentity {
+        validator_pubkey: validator_keypair.public.to_bytes().to_vec(),
+        wallet_address: wallet_keypair.verifying_key().to_bytes().to_vec(),
+        validator_keypair,
+        wallet_keypair,
+    })
+}
+
+/// Load the persistent libp2p identity seed, creating it on first run.
+///
+/// Persisting the seed keeps the node's PeerId stable across restarts, which
+/// peers need in order to bootstrap against a published multiaddr.
+pub fn load_or_create_libp2p_seed(
+    base_path: &std::path::Path,
+) -> Result<[u8; 32], String> {
+    std::fs::create_dir_all(base_path)
+        .map_err(|e| format!("Failed to create data dir {:?}: {}", base_path, e))?;
+
+    let path = base_path.join("libp2p_identity.key");
+    if path.exists() {
+        let bytes = std::fs::read(&path)
+            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+        if bytes.len() != 32 {
+            return Err(format!(
+                "Invalid libp2p identity length in {}: {} (expected 32)",
+                path.display(),
+                bytes.len()
+            ));
+        }
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&bytes);
+        Ok(seed)
+    } else {
+        let mut seed = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut seed);
+        std::fs::write(&path, seed)
+            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
+        info!("Created new libp2p identity at {:?}", path);
+        Ok(seed)
+    }
+}
+
 impl Node {
     pub fn new(config: AppConfig) -> Self {
         Self { config }
@@ -36,10 +190,17 @@ impl Node {
 
         let port = self.config.network.port;
 
+        // Data directory + persistent libp2p identity, so the PeerId stays
+        // stable across restarts (peers bootstrap against a published multiaddr).
+        let base_path = self.config.data_dir.clone().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let identity_seed = load_or_create_libp2p_seed(&base_path)
+            .expect("Failed to initialise libp2p identity");
+
         // Network configuration
         let network_config = NetworkConfig {
             listen_addr: self.config.network.listen_addr.clone(),
             bootstrap_peers: self.config.network.bootstrap_peers.clone(),
+            identity_seed: Some(identity_seed),
         };
 
         // Create channels for network communication
@@ -54,8 +215,22 @@ impl Node {
         
         // Calculate API port (HTTP API on port - 1000)
         // P2P: 9000-9002 -> API: 8000-8002
-        let api_port = port - 1000;
-        let api_config = crate::api::ApiConfig { port: api_port as u16 };
+        let api_port = port.saturating_sub(1000);
+        let api_config = crate::api::ApiConfig {
+            port: api_port,
+            // The API binds to loopback by default. Publish it deliberately via
+            // NOCOSTCOIN_API_BIND, and protect state-changing endpoints with
+            // NOCOSTCOIN_API_TOKEN.
+            bind_addr: std::env::var("NOCOSTCOIN_API_BIND")
+                .unwrap_or_else(|_| "127.0.0.1".to_string()),
+            token: std::env::var("NOCOSTCOIN_API_TOKEN")
+                .ok()
+                .filter(|t| !t.trim().is_empty()),
+            faucet_enabled: matches!(
+                std::env::var("NOCOSTCOIN_ENABLE_FAUCET").as_deref(),
+                Ok("1") | Ok("true") | Ok("yes")
+            ),
+        };
         
         tokio::spawn(async move {
             crate::api::start_api_server(api_config, api_tx).await;
@@ -66,81 +241,16 @@ impl Node {
             .await
             .expect("Failed to create network node");
 
-        // Helper to generate deterministic keypair from a seed string (Schnorrkel)
-        fn generate_validator_keypair(seed_str: &str) -> schnorrkel::Keypair {
-            let mut seed = [0u8; 32];
-            let bytes = seed_str.as_bytes();
-            for (i, &b) in bytes.iter().enumerate().take(32) {
-                seed[i] = b;
-            }
-            let mini_secret = schnorrkel::MiniSecretKey::from_bytes(&seed)
-                .expect("Failed to create secret from seed");
-            let secret = mini_secret.expand(schnorrkel::ExpansionMode::Ed25519);
-            secret.to_keypair()
-        }
+        // 1. Validator key (Schnorrkel, consensus identity)
+        // 2. Wallet key (Ed25519, transactions)
+        let identity = load_or_create_identity(&self.config, &base_path)
+            .expect("Failed to initialise node identity");
+        let validator_keypair = identity.validator_keypair;
+        let wallet_keypair = identity.wallet_keypair;
+        let wallet_path = base_path.join(format!("wallet_{}.key", port));
 
-        // Helper to generate deterministic Ed25519 key (Wallet)
-        fn generate_wallet_key(seed_str: &str) -> SigningKey {
-            let mut seed = [0u8; 32];
-            let bytes = seed_str.as_bytes();
-            for (i, &b) in bytes.iter().enumerate().take(32) {
-                seed[i] = b;
-            }
-            SigningKey::from_bytes(&seed)
-        }
-
-        // Determine base path
-        let base_path = self.config.data_dir.clone().unwrap_or_else(|| std::path::PathBuf::from("."));
-
-        // 1. Initialize Validator Key (Schnorrkel) for Consensus
-        let val_filename = format!("validator_{}.key", port);
-        let val_path = base_path.join(val_filename);
-        
-        let validator_keypair = if let Some(seed) = &self.config.mining.validator_seed {
-            info!("Using deterministic validator key from config");
-            generate_validator_keypair(seed)
-        } else {
-            // Load or create validator key file
-            if val_path.exists() {
-               let bytes = std::fs::read(&val_path).expect("Failed to read validator key");
-               schnorrkel::SecretKey::from_bytes(&bytes).expect("Invalid key").to_keypair()
-            } else {
-               info!("Creating new validator key at {:?}", val_path);
-               let kp = schnorrkel::Keypair::generate();
-               std::fs::write(&val_path, kp.secret.to_bytes()).expect("Failed to save validator key");
-               kp
-            }
-        };
-
-        // 2. Initialize Wallet Key (Ed25519) for Transactions
-        let wallet_filename = format!("wallet_{}.key", port);
-        let wallet_path = base_path.join(wallet_filename);
-        let wallet_path_str = wallet_path.to_str().unwrap();
-        
-        let wallet_keypair = if let Some(seed) = &self.config.mining.validator_seed {
-            info!("Using deterministic wallet key from seed");
-            let kp = generate_wallet_key(seed);
-            
-            // Save just for checks
-            let w = Wallet::from_keypair(kp.clone());
-             if let Err(e) = w.save_to_file(wallet_path_str) {
-                warn!("Warning: Failed to save deterministic wallet: {}", e);
-            }
-            kp
-        } else {
-            match Wallet::load_from_file(wallet_path_str) {
-                Ok(w) => {
-                    info!("Loaded wallet from {}", wallet_path_str);
-                    w.keypair
-                }
-                Err(_) => {
-                    info!("Creating new wallet at {}", wallet_path_str);
-                    let w = Wallet::new();
-                    w.save_to_file(wallet_path_str).expect("Failed to save wallet");
-                    w.keypair
-                }
-            }
-        };
+        info!("Validator pubkey: {}", hex::encode(&identity.validator_pubkey));
+        info!("Wallet address:   {}", hex::encode(&identity.wallet_address));
 
         // Create Deterministic Genesis Block
         let genesis_seed_str = &self.config.genesis.genesis_seed;
@@ -177,25 +287,70 @@ impl Node {
         // Initialize Chain with Storage
         let mut chain = Chain::new(storage, genesis_block.clone(), genesis_time);
 
-        // PRE-REGISTER Configured Validators
+        // PRE-REGISTER the founding validators declared in the genesis file.
+        //
+        // `initial_validators` holds hex-encoded Schnorrkel public keys, so the
+        // genesis file never contains a validator secret key and can safely be
+        // committed to a public repo. `initial_validator_seeds` is the
+        // devnet/testnet equivalent, where the seed doubles as the secret key.
         info!("Pre-registering initial validators...");
-        for seed in &self.config.genesis.initial_validators {
+        let mut genesis_validator_pubkeys: Vec<Vec<u8>> = Vec::new();
+
+        for entry in &self.config.genesis.initial_validators {
+            let pubkey = hex::decode(entry.trim()).unwrap_or_else(|e| {
+                panic!(
+                    "Invalid validator pubkey '{}' in genesis.initial_validators: {}",
+                    entry, e
+                )
+            });
+            assert_eq!(
+                pubkey.len(),
+                32,
+                "Validator pubkey '{}' must be 32 bytes",
+                entry
+            );
+            register_genesis_validator(&mut chain, &mut genesis_validator_pubkeys, pubkey);
+        }
+
+        for seed in &self.config.genesis.initial_validator_seeds {
             let node_kp = generate_validator_keypair(seed);
-            let node_pubkey = node_kp.public.to_bytes().to_vec();
-            
-            if chain.state.get_balance(&node_pubkey) == 0 {
-                chain.state.set_balance(node_pubkey.clone(), 1_000_000);
-                let _ = chain.validators.register_validator(node_pubkey, 1_000_000, 0);
+            register_genesis_validator(
+                &mut chain,
+                &mut genesis_validator_pubkeys,
+                node_kp.public.to_bytes().to_vec(),
+            );
+        }
+
+        // Fund the accounts declared in genesis. Funding has to live in the
+        // genesis file rather than being derived per node, otherwise every
+        // node computes a different genesis state and the chain forks.
+        for account in &self.config.genesis.initial_funded_accounts {
+            let address = hex::decode(account.trim()).unwrap_or_else(|e| {
+                panic!(
+                    "Invalid funded account '{}' in genesis.initial_funded_accounts: {}",
+                    account, e
+                )
+            });
+            assert_eq!(address.len(), 32, "Funded account '{}' must be 32 bytes", account);
+            if chain.state.get_balance(&address) == 0 {
+                chain.state.set_balance(address, 1_000_000);
             }
         }
-        
+
+        let am_genesis_validator = genesis_validator_pubkeys.contains(&identity.validator_pubkey);
+        info!(
+            "Genesis validators: {} | this node is a genesis validator: {}",
+            genesis_validator_pubkeys.len(),
+            am_genesis_validator
+        );
+
         // Register self if we have balance (or give balance if genesis logic allows)
         // For Devnet simplicity: ensure self has balance if we are using a configured seed
         // (The loop above likely covered us if we are in the initial list)
         // If we are NOT in the initial list, we might need funding (Faucet).
         let my_address = wallet_keypair.verifying_key().to_bytes().to_vec();
-        if self.config.mining.validator_seed.is_some() {
-             // If we rely on seed, we expect to be in genesis. 
+        if self.config.mining.validator_seed.is_some() && self.config.genesis.chain_id != 1 {
+             // If we rely on seed, we expect to be in genesis.
              // Double check balance.
              if chain.state.get_balance(&my_address) == 0 {
                   // Fallback for standalone dev mode: fund self

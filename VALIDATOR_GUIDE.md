@@ -47,19 +47,31 @@ Check your logs to see if you are connecting to peers:
 ```bash
 docker logs -f nocostcoin-node-1-1
 ```
-Look for "Connected to peer" messages.
+Look for "Connected to peer" messages. You can also check the health endpoint:
+```bash
+curl -s http://127.0.0.1:8000/health
+```
 
 ## Step 5: Become a Validator (Staking)
 To become a validator, you need to stake coins.
 
 1.  **Generate a Wallet**:
     ```bash
-    curl -X POST http://localhost:8000/wallet/new
+    curl -X POST http://127.0.0.1:8000/wallet/new
     ```
 2.  **Get Testnet Coins**: Ask for coins in the community channel or use the faucet (if available).
 3.  **Register Validator**:
     ```bash
-    curl -X POST http://localhost:8000/validator/register \
+    curl -X POST http://127.0.0.1:8000/validator/register \
          -H "Content-Type: application/json" \
          -d '{"stake": 1000}'
     ```
+
+If the node runs with `NOCOSTCOIN_API_TOKEN` set, add the bearer token to the
+requests above - `wallet/new` and `validator/register` are guarded by it:
+```bash
+curl -X POST http://127.0.0.1:8000/validator/register \
+         -H "Authorization: Bearer $NOCOSTCOIN_API_TOKEN" \
+         -H "Content-Type: application/json" \
+         -d '{"stake": 1000}'
+```

@@ -73,8 +73,8 @@ export default function AuthModal({ isOpen, onClose, onConnect }: AuthModalProps
 
                 <div className="mt-6 text-center text-sm text-gray-600">
                     <p className="mb-1">Don&apos;t have a wallet?</p>
-                    <a href="/testnet" className="text-primary-600 hover:text-primary-700 font-medium">
-                        Create one in the testnet dashboard
+                    <a href="/mainnet" className="text-primary-600 hover:text-primary-700 font-medium">
+                        Create one in the Mainnet dashboard
                     </a>
                 </div>
             </div>

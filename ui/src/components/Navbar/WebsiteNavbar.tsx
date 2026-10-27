@@ -56,8 +56,8 @@ export default function WebsiteNavbar() {
                             <Link href="/contact" className={`${isActive('/contact') === 'text-primary-600 font-semibold' ? 'text-primary-500 font-semibold' : 'text-slate-300'} hover:text-white transition-colors`}>
                                 Contact
                             </Link>
-                            <Link href="/testnet" className="btn-primary">
-                                Try Testnet →
+                            <Link href="/mainnet" className="btn-primary">
+                                Launch App →
                             </Link>
                         </div>
 
@@ -100,8 +100,8 @@ export default function WebsiteNavbar() {
                         <Link href="/contact" className="px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors" onClick={closeMenu}>
                             Contact
                         </Link>
-                        <Link href="/testnet" className="btn-primary text-center mt-2" onClick={closeMenu}>
-                            Try Testnet →
+                        <Link href="/mainnet" className="btn-primary text-center mt-2" onClick={closeMenu}>
+                            Launch App →
                         </Link>
                     </div>
                 </div>

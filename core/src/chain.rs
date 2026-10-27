@@ -439,10 +439,10 @@ mod tests {
         chain.validators.register_validator(pubkey.clone(), 1000, 0).unwrap();
 
         // Setup: Fund sender
-        let sender_pair = Crypto::generate_keypair();
-        let sender = sender_pair.public.to_bytes().to_vec();
-        let receiver_pair = Crypto::generate_keypair();
-        let receiver = receiver_pair.public.to_bytes().to_vec();
+        let sender_pair = crate::wallet::Wallet::new().keypair;
+        let sender = sender_pair.verifying_key().to_bytes().to_vec();
+        let receiver_pair = crate::wallet::Wallet::new().keypair;
+        let receiver = receiver_pair.verifying_key().to_bytes().to_vec();
 
         chain.state.set_balance(sender.clone(), 100);
         chain.state.apply_changes().unwrap();

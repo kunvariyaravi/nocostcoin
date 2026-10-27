@@ -53,6 +53,10 @@ pub enum NetworkMessage {
 pub struct NetworkConfig {
     pub listen_addr: String,
     pub bootstrap_peers: Vec<String>,
+    /// Persistent ed25519 seed for the libp2p identity. Reusing the same seed
+    /// across restarts keeps the node's PeerId stable, which peers need in
+    /// order to bootstrap against a published multiaddr.
+    pub identity_seed: Option<[u8; 32]>,
 }
 
 impl Default for NetworkConfig {
@@ -60,6 +64,7 @@ impl Default for NetworkConfig {
         Self {
             listen_addr: "/ip4/0.0.0.0/tcp/9000".to_string(),
             bootstrap_peers: vec![],
+            identity_seed: None,
         }
     }
 }
@@ -162,8 +167,12 @@ impl NetworkNode {
         vote_tx: mpsc::UnboundedSender<vote::Vote>,
         sync_tx: mpsc::UnboundedSender<SyncMessage>,
     ) -> Result<(Self, NetworkClient), Box<dyn Error>> {
-        // Generate a random peer ID
-        let local_key = libp2p::identity::Keypair::generate_ed25519();
+        // Reuse the persisted identity when available so the PeerId survives
+        // restarts; otherwise fall back to a fresh random identity.
+        let local_key = match config.identity_seed {
+            Some(seed) => libp2p::identity::Keypair::ed25519_from_bytes(seed)?,
+            None => libp2p::identity::Keypair::generate_ed25519(),
+        };
         let local_peer_id = PeerId::from(local_key.public());
         info!("Local peer id: {}", local_peer_id);
 
@@ -482,6 +491,7 @@ mod tests {
         let config = NetworkConfig {
             listen_addr: "/ip4/127.0.0.1/tcp/0".to_string(), // OS assigns random port
             bootstrap_peers: vec![],
+            identity_seed: None,
         };
         
         // Mock channels

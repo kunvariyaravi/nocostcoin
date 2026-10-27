@@ -3,12 +3,10 @@ import Features from "@/components/Features/Features";
 import CodeShowcase from "@/components/CodeShowcase/CodeShowcase";
 import PreFooter from "@/components/PreFooter/PreFooter";
 import Link from 'next/link';
-import WebsiteNavbar from "@/components/Navbar/WebsiteNavbar";
 
 export default function Home() {
   return (
     <>
-      <WebsiteNavbar />
       <main className="min-h-screen">
         <Hero />
         <Features />

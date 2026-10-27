@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,7 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Forward to backend API
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
         const response = await fetch(`${backendUrl}/faucet`, {
             method: 'POST',
             cache: 'no-store',

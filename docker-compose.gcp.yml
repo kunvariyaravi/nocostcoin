@@ -1,0 +1,83 @@
+version: '3.8'
+
+# GCP seed deployment: 1 node + UI.
+# Usage on VM: DOMAIN=your.domain.com docker compose -f docker-compose.gcp.yml up -d --build
+# Requires config/nocostcoin-gcp-seed.toml (fresh genesis, listen 0.0.0.0).
+#
+# The seed runs its own standalone chain (chain_id 1338), not the mainnet.
+
+services:
+  node-1:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: nocostcoin-node
+    ports:
+      - "9000:9000"               # P2P (public)
+      - "127.0.0.1:8000:8000"     # API (loopback only - nginx proxies it)
+    volumes:
+      # data_dir in the config is /data - mounting it here keeps the chain
+      # database, keys and the libp2p identity across container recreates.
+      - ./data/node-1:/data
+      - ./config:/usr/local/bin/config:ro
+    command:
+      - "--config"
+      - "config/nocostcoin-gcp-seed.toml"
+    environment:
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+      - NOCOSTCOIN_API_BIND=0.0.0.0
+      # The seed is a throwaway test chain, so the faucet is allowed here.
+      - NOCOSTCOIN_ENABLE_FAUCET=1
+    restart: unless-stopped
+    networks:
+      - nocostcoin-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID}
+        NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION}
+    container_name: nocostcoin-ui
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}/api/node
+      - INTERNAL_API_URL=http://node-1:8000
+    restart: unless-stopped
+    depends_on:
+      node-1:
+        condition: service_healthy
+    networks:
+      - nocostcoin-network
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+
+networks:
+  nocostcoin-network:
+    driver: bridge

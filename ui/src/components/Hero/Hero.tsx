@@ -17,7 +17,7 @@ export default function Hero() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                     </span>
-                    <span className="text-gray-300 text-sm font-medium tracking-wide">Testnet is Live</span>
+                    <span className="text-gray-300 text-sm font-medium tracking-wide">Mainnet is Live</span>
                 </div>
 
                 {/* Main Heading */}
@@ -36,7 +36,7 @@ export default function Hero() {
 
                 {/* CTAs */}
                 <div className="flex flex-col sm:flex-row gap-6 justify-center mb-20 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-                    <Link href="/testnet" className="group relative px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-semibold text-lg transition-all duration-300 shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] transform hover:-translate-y-1">
+                    <Link href="/mainnet" className="group relative px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-semibold text-lg transition-all duration-300 shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] transform hover:-translate-y-1">
                         <span className="relative z-10">Launch App</span>
                         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary-600 to-accent-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md"></div>
                     </Link>

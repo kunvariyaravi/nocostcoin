@@ -1,5 +1,14 @@
 version: '3.8'
 
+# Local 3-node devnet.
+#
+#   docker compose up -d --build
+#
+# Each node uses its own config (so it gets its own validator seed) and its own
+# data directory. --data-dir points the node at the mounted volume - without it
+# the chain database would be written inside the container and lost on every
+# recreate.
+
 services:
   node-1:
     build: ./core
@@ -7,14 +16,14 @@ services:
       - "9000:9000"
       - "8000:8000"
     volumes:
-      - ./data/node-1:/usr/local/bin/data
+      - ./data/node-1:/data
       - ./config:/usr/local/bin/config
-    command: [ "--config", "config/nocostcoin.toml", "--port", "9000", "--mining", "true" ]
+    command: [ "--config", "config/node1.toml", "--data-dir", "/data" ]
     environment:
       - RUST_LOG=info
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/stats" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25,9 +34,11 @@ services:
       - "9001:9001"
       - "8001:8001"
     volumes:
-      - ./data/node-2:/usr/local/bin/data
+      - ./data/node-2:/data
       - ./config:/usr/local/bin/config
-    command: [ "--config", "config/nocostcoin.toml", "--port", "9001", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    command: [ "--config", "config/node2.toml", "--data-dir", "/data", "--bootstrap", "/ip4/127.0.0.1/tcp/9000" ]
+    environment:
+      - RUST_LOG=info
     restart: unless-stopped
     depends_on:
       - node-1
@@ -38,9 +49,11 @@ services:
       - "9002:9002"
       - "8002:8002"
     volumes:
-      - ./data/node-3:/usr/local/bin/data
+      - ./data/node-3:/data
       - ./config:/usr/local/bin/config
-    command: [ "--config", "config/nocostcoin.toml", "--port", "9002", "--bootstrap", "/ip4/node-1/tcp/9000" ]
+    command: [ "--config", "config/node3.toml", "--data-dir", "/data", "--bootstrap", "/ip4/127.0.0.1/tcp/9000" ]
+    environment:
+      - RUST_LOG=info
     restart: unless-stopped
     depends_on:
       - node-1

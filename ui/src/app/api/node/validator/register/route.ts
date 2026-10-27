@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL, nodeApiHeaders } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
     try {
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
         const body = await request.json();
 
         // Validate request body
@@ -17,9 +18,9 @@ export async function POST(request: Request) {
 
         const response = await fetch(`${backendUrl}/validator/register`, {
             method: 'POST',
-            headers: {
+            headers: nodeApiHeaders({
                 'Content-Type': 'application/json',
-            },
+            }),
             body: JSON.stringify(body),
         });
 

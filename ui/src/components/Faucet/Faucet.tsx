@@ -89,7 +89,7 @@ export default function Faucet() {
         <>
             <div className="card text-center">
                 <div className="text-6xl mb-4">💧</div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Testnet Faucet</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Mainnet Faucet</h3>
                 <p className="text-gray-600 mb-6">Get free test tokens to try out the network</p>
 
                 {walletAddress ? (

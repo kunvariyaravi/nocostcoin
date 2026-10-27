@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export async function GET(
 ) {
     try {
         const hash = params.hash;
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
 
         const response = await fetch(`${backendUrl}/transaction/${hash}`);
 

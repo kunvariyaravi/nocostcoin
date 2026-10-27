@@ -122,6 +122,50 @@ pub struct NodeStats {
 #[derive(Clone)]
 pub struct ApiConfig {
     pub port: u16,
+    /// Address the API binds to. Defaults to loopback so the API is not
+    /// reachable from other hosts unless it is explicitly opened up.
+    pub bind_addr: String,
+    /// When set, state-changing endpoints require `Authorization: Bearer <token>`.
+    pub token: Option<String>,
+    /// Whether the faucet endpoint is enabled. Disabled by default.
+    pub faucet_enabled: bool,
+}
+
+/// Request body limits. A signed transaction is the largest payload we accept.
+/// warp does not cap JSON bodies on its own, so every POST states its limit.
+const MAX_TX_BODY: u64 = 64 * 1024;
+const MAX_SMALL_BODY: u64 = 4 * 1024;
+
+/// Largest page of blocks a single `/blocks` request may return.
+const MAX_BLOCKS_PAGE: usize = 100;
+
+/// Checks the `Authorization: Bearer <token>` header against the configured
+/// token. When no token is configured the endpoint stays open.
+///
+/// Read-only endpoints must not use this filter.
+fn auth_filter(
+    config: &ApiConfig,
+) -> impl warp::Filter<Extract = (bool,), Error = warp::Rejection> + Clone {
+    let token = config.token.clone();
+    warp::header::optional::<String>("authorization").map(move |header: Option<String>| {
+        let authorized = match &token {
+            None => true,
+            Some(expected) => header
+                .as_deref()
+                .and_then(|h| h.strip_prefix("Bearer "))
+                .map(|provided| provided.trim() == expected)
+                .unwrap_or(false),
+        };
+        authorized
+    })
+}
+
+/// Reply used when a protected endpoint is called without a valid token.
+fn unauthorized() -> warp::reply::WithStatus<warp::reply::Json> {
+    warp::reply::with_status(
+        warp::reply::json(&"Unauthorized"),
+        warp::http::StatusCode::UNAUTHORIZED,
+    )
 }
 
 pub fn start_api_server(
@@ -175,17 +219,22 @@ pub fn start_api_server(
 
     // POST /transaction/send
     // Expects JSON body: Transaction
+    // The transaction is signed by the caller, so this endpoint is open.
     let tx_route = warp::path!("transaction" / "send")
         .and(warp::post())
+        .and(warp::body::content_length_limit(MAX_TX_BODY))
         .and(warp::body::json())
         .and(cmd_tx_filter.clone())
         .and_then(handle_submit_transaction);
 
     // POST /transaction/create
     // Expects JSON body: CreateTransactionRequest
+    // Signs with the node's wallet - token protected.
     let create_tx_route = warp::path!("transaction" / "create")
         .and(warp::post())
+        .and(warp::body::content_length_limit(MAX_TX_BODY))
         .and(warp::body::json())
+        .and(auth_filter(&config))
         .and(cmd_tx_filter.clone())
         .and_then(handle_create_transaction);
 
@@ -202,15 +251,20 @@ pub fn start_api_server(
         .and_then(handle_get_peers);
 
     // POST /wallet/new
+    // Replaces the node's wallet - token protected.
     let create_wallet_route = warp::path!("wallet" / "new")
         .and(warp::post())
+        .and(auth_filter(&config))
         .and(cmd_tx_filter.clone())
         .and_then(handle_create_wallet);
 
     // POST /wallet/recover
+    // Replaces the node's wallet - token protected.
     let recover_wallet_route = warp::path!("wallet" / "recover")
         .and(warp::post())
+        .and(warp::body::content_length_limit(MAX_SMALL_BODY))
         .and(warp::body::json())
+        .and(auth_filter(&config))
         .and(cmd_tx_filter.clone())
         .and_then(handle_recover_wallet);
 
@@ -236,18 +290,30 @@ pub fn start_api_server(
     // POST /validator/register
     let register_validator_route = warp::path!("validator" / "register")
         .and(warp::post())
+        .and(warp::body::content_length_limit(MAX_SMALL_BODY))
         .and(warp::body::json())
+        .and(auth_filter(&config))
         .and(cmd_tx_filter.clone())
         .and_then(handle_register_validator);
 
     // POST /faucet
+    // Mints coins, so it is only available when explicitly enabled.
+    let faucet_enabled = config.faucet_enabled;
     let faucet_route = warp::path!("faucet")
         .and(warp::post())
+        .and(warp::body::content_length_limit(MAX_SMALL_BODY))
         .and(warp::body::json())
+        .and(warp::any().map(move || faucet_enabled))
         .and(cmd_tx_filter.clone())
         .and_then(handle_faucet);
 
+    // GET /health
+    let health_route = warp::path!("health")
+        .and(warp::get())
+        .and_then(handle_health);
+
     let routes = stats_route
+        .or(health_route)
         .or(blocks_route)
         .or(block_route)
         .or(get_block_route)
@@ -266,8 +332,21 @@ pub fn start_api_server(
         .or(consensus_route)
         .or(faucet_route);
 
-    println!("API server starting on http://0.0.0.0:{}", config.port);
-    warp::serve(routes).run(([0, 0, 0, 0], config.port))
+    let bind_ip: std::net::IpAddr = config
+        .bind_addr
+        .parse()
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+
+    println!("API server starting on http://{}:{}", bind_ip, config.port);
+    warp::serve(routes).run((bind_ip, config.port))
+}
+
+/// GET /health
+async fn handle_health() -> Result<impl warp::Reply, warp::Rejection> {
+    Ok(warp::reply::with_status(
+        warp::reply::json(&"ok"),
+        warp::http::StatusCode::OK,
+    ))
 }
 
 async fn handle_get_account_history(
@@ -326,7 +405,9 @@ async fn handle_get_blocks(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let (tx, rx) = oneshot::channel();
     let start_height = query.start_height.unwrap_or(u64::MAX); // Special value to mean "from head"
-    let limit = query.limit.unwrap_or(10);
+    // Clamp the page size: an unbounded limit lets a caller ask the node to
+    // assemble an arbitrarily large response.
+    let limit = query.limit.unwrap_or(10).clamp(1, MAX_BLOCKS_PAGE);
 
     if cmd_tx.send(ApiCommand::GetBlocks(start_height, limit, tx)).is_err() {
         return Ok(warp::reply::with_status(
@@ -493,8 +574,13 @@ async fn handle_submit_transaction(
 
 async fn handle_create_transaction(
     request: CreateTransactionRequest,
+    authorized: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    if !authorized {
+        return Ok(unauthorized());
+    }
+
     let (tx, rx) = oneshot::channel();
 
     if cmd_tx.send(ApiCommand::CreateTransaction(request, tx)).is_err() {
@@ -569,8 +655,13 @@ async fn handle_get_peers(
 }
 
 async fn handle_create_wallet(
+    authorized: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    if !authorized {
+        return Ok(unauthorized());
+    }
+
     let (tx, rx) = oneshot::channel();
     
     if cmd_tx.send(ApiCommand::CreateWallet(tx)).is_err() {
@@ -594,8 +685,13 @@ async fn handle_create_wallet(
 
 async fn handle_recover_wallet(
     request: RecoverWalletRequest,
+    authorized: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    if !authorized {
+        return Ok(unauthorized());
+    }
+
     let (tx, rx) = oneshot::channel();
     
     if cmd_tx.send(ApiCommand::RecoverWallet(request, tx)).is_err() {
@@ -679,8 +775,13 @@ async fn handle_get_validators(
 
 async fn handle_register_validator(
     request: RegisterValidatorRequest,
+    authorized: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    if !authorized {
+        return Ok(unauthorized());
+    }
+
     let (tx, rx) = oneshot::channel();
     
     if cmd_tx.send(ApiCommand::RegisterValidator(request.stake, tx)).is_err() {
@@ -732,8 +833,16 @@ async fn handle_get_consensus_state(
 
 async fn handle_faucet(
     request: FaucetRequest,
+    enabled: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    if !enabled {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&"Faucet is disabled on this node"),
+            warp::http::StatusCode::FORBIDDEN,
+        ));
+    }
+
     let (tx, rx) = oneshot::channel();
     
     if cmd_tx.send(ApiCommand::Faucet(request, tx)).is_err() {

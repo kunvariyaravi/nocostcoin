@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
         console.log('[API] Transformed TX:', JSON.stringify(tx));
 
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
         console.log('[API] Forwarding to:', `${backendUrl}/transaction/send`);
 
         const response = await fetch(`${backendUrl}/transaction/send`, {

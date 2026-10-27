@@ -30,12 +30,15 @@ cd $NODE_NAME
 if [ ! -f config/nocostcoin.toml ]; then
     echo "Creating default config..."
     cat > config/nocostcoin.toml <<EOF
+data_dir = "/data"
+
 [network]
 port = $P2P_PORT
 bootstrap_peers = [] # Add bootnodes here
 listen_addr = "/ip4/0.0.0.0/tcp/$P2P_PORT"
 
 [genesis]
+chain_id = 1337
 genesis_time = 1733760000000
 genesis_seed = "nocostcoin-genesis-seed"
 initial_validators = []
@@ -52,7 +55,7 @@ docker run -d \
     --restart unless-stopped \
     -p $P2P_PORT:$P2P_PORT \
     -p $API_PORT:$API_PORT \
-    -v $(pwd)/data:/usr/local/bin/data \
+    -v $(pwd)/data:/data \
     -v $(pwd)/config:/usr/local/bin/config \
     nocostcoin/core:latest \
     ./nocostcoin --config config/nocostcoin.toml

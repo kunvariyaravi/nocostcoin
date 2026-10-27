@@ -32,11 +32,11 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
     }, []);
 
     const navItems = [
-        { name: 'Dashboard', href: '/testnet', icon: HomeIcon },
-        { name: 'Wallet', href: '/testnet/wallet', icon: WalletIcon },
-        { name: 'Explorer', href: '/testnet/explorer', icon: CubeTransparentIcon },
-        { name: 'Validator', href: '/testnet/validator', icon: ServerStackIcon },
-        { name: 'Network', href: '/testnet/network', icon: GlobeAltIcon },
+        { name: 'Dashboard', href: '/mainnet', icon: HomeIcon },
+        { name: 'Wallet', href: '/mainnet/wallet', icon: WalletIcon },
+        { name: 'Explorer', href: '/mainnet/explorer', icon: CubeTransparentIcon },
+        { name: 'Validator', href: '/mainnet/validator', icon: ServerStackIcon },
+        { name: 'Network', href: '/mainnet/network', icon: GlobeAltIcon },
     ];
 
     return (
@@ -53,7 +53,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
                     </span>
                 </Link>
                 <div className="mt-2 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded text-xs font-medium text-blue-400 w-fit">
-                    TESTNET BETA
+                    Mainnet BETA
                 </div>
             </div>
 
@@ -87,7 +87,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
                             {isOnline ? 'Network Connected' : 'Network Offline'}
                         </span>
                     </div>
-                    <p className="text-xs text-slate-500">Testnet v0.1.0-alpha</p>
+                    <p className="text-xs text-slate-500">Mainnet v0.1.0-alpha</p>
                 </div>
             </div>
         </aside>

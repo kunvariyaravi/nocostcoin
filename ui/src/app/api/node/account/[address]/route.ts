@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +9,9 @@ export async function GET(
 ) {
     try {
         const address = params.address;
-        const internal = process.env.INTERNAL_API_URL;
-        const publicUrl = process.env.NEXT_PUBLIC_API_URL;
-        const backendUrl = internal || publicUrl || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
 
         console.log(`[Debug] Account Route: Address=${address}`);
-        console.log(`[Debug] Env Vars: INTERNAL=${internal}, PUBLIC=${publicUrl}`);
         console.log(`[Debug] Resolved BackendURL=${backendUrl}`);
 
         const response = await fetch(`${backendUrl}/account/${address}`, {

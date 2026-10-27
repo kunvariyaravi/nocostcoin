@@ -1,15 +1,18 @@
 # Nocostcoin Configuration - Node 3
 
+data_dir = "C:/nocostcoin/data/node-3"
+
 [network]
 port = 9002
 bootstrap_peers = []
 listen_addr = "/ip4/127.0.0.1/tcp/9002"
 
 [genesis]
+chain_id = 1337
 # Dec 9 2024 00:00:00 UTC
 genesis_time = 1733760000000 
 genesis_seed = "nocostcoin-genesis-seed"
-initial_validators = [
+initial_validator_seeds = [
     "nocostcoin_node_9000_seed",
     "nocostcoin_node_9001_seed",
     "nocostcoin_node_9002_seed"

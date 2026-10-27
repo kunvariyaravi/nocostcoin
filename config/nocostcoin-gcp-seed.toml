@@ -1,0 +1,31 @@
+# Nocostcoin GCP Seed Node - standalone fresh genesis (not the mainnet chain)
+#
+# This seed runs its OWN chain: its genesis_seed differs from the mainnet
+# genesis and setup-seed.sh stamps genesis_time at deploy time. It therefore
+# uses its own chain_id and must not be given chain_id = 1 - chain_id 1 is the
+# mainnet, and the mainnet forbids a deterministic validator seed.
+#
+# NOTE: setup-seed.sh overwrites genesis_time with deploy-time `date +%s000`.
+# Keep validator_seed secret - anyone with it can equivocate as your seed.
+#
+# data_dir must match the volume mount in docker-compose.gcp.yml, otherwise the
+# chain database is written inside the container and lost on every recreate.
+
+data_dir = "/data"
+
+[network]
+port = 9000
+bootstrap_peers = []
+listen_addr = "/ip4/0.0.0.0/tcp/9000"
+
+[genesis]
+chain_id = 1338
+genesis_time = 1789862400000 # 2026-09-20 00:00 UTC fallback; replaced at deploy time
+genesis_seed = "nocostcoin-gcp-seed-v1-9f3a"
+initial_validator_seeds = [
+    "nocostcoin_gcp_seed_v1_a3f9c71e2b4d48f6a1c5e7730b6d9f42"
+]
+
+[mining]
+enabled = true
+validator_seed = "nocostcoin_gcp_seed_v1_a3f9c71e2b4d48f6a1c5e7730b6d9f42"

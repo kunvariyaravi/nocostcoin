@@ -1,0 +1,25 @@
+# Genesis ceremony config - used only to create a validator identity.
+#
+# The node reads data_dir from here, so the generated keys land in
+# <repo>/data/genesis. Nothing else in this file matters for the ceremony.
+#
+#   nocostcoin --config ../config/ceremony.toml --identity
+#
+# Use --port 9000/9001/9002 to generate the key for each of the three
+# validators (the key file name follows the port).
+
+data_dir = "../data/genesis"
+
+[network]
+port = 9000
+bootstrap_peers = []
+listen_addr = "/ip4/127.0.0.1/tcp/9000"
+
+[genesis]
+chain_id = 1
+genesis_time = 1789888215871
+genesis_seed = "nocostcoin-genesis-seed"
+initial_validators = []
+
+[mining]
+enabled = false

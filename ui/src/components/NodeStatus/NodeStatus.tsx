@@ -55,8 +55,8 @@ export default function NodeStatus() {
                     <div>
                         <div className="font-semibold">Network Offline</div>
                         <div className="text-sm">
-                            <strong>To start the testnet:</strong>
-                            <code className="block mt-1 bg-red-100 px-2 py-1 rounded text-xs">.\launch_testnet.ps1</code>
+                            <strong>To start the Mainnet:</strong>
+                            <code className="block mt-1 bg-red-100 px-2 py-1 rounded text-xs">.\launch_Mainnet.ps1</code>
                         </div>
                     </div>
                 </div>

@@ -6,13 +6,19 @@ target/
 # Database & Keys
 nocostcoin_db*/
 wallet_*.key
+validator_*.key
+libp2p_identity.key
 core/nocostcoin_db*/
 core/wallet_*.key
+core/validator_*.key
+core/libp2p_identity.key
+data/
+*.log
 .env
 .env*.local
-
-# Logs
-**/*.log
+NOCOSTCOIN_API_TOKEN
+security-test.py
+patch_*.py
 
 # OS
 **/.DS_Store
@@ -31,6 +37,10 @@ dist/
 *.swo
 *~
 
+# Tooling
+.commandcode/
+
 # Testing
 .nyc_output
 coverage/
+

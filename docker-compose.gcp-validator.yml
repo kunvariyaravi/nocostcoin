@@ -1,0 +1,65 @@
+version: '3.8'
+
+# GCP MAINNET validator deployment.
+#
+#   DOMAIN=api.nocostcoin.com \
+#   NOCOSTCOIN_API_TOKEN=<long-random-secret> \
+#   docker compose -f docker-compose.gcp-validator.yml up -d --build
+#
+# Requires config/mainnet-gcp.toml with the real genesis (run the ceremony first).
+#
+# The UI is NOT on this VM - it runs on Vercel and talks to this node through
+# https://api.nocostcoin.com (see deploy/gcp/nginx-validator.conf).
+#
+# Port layout:
+#   9000  P2P  published publicly - other validators dial this
+#   8000  API  published on 127.0.0.1 only - nginx is the only way in
+
+services:
+  node-1:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: nocostcoin-validator
+    ports:
+      - "9000:9000"               # P2P (public)
+      - "127.0.0.1:8000:8000"     # API (loopback only)
+    volumes:
+      # The node's data_dir is /data (config/mainnet-gcp.toml). Mounting it here
+      # keeps the chain database, the validator key, the wallet key and the
+      # libp2p identity across container recreates.
+      - ./data/validator:/data
+      - ./config:/usr/local/bin/config:ro
+    command:
+      - "--config"
+      - "config/mainnet-gcp.toml"
+    environment:
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+      # Inside the container the API must listen on all interfaces, otherwise the
+      # published port cannot reach it. It is NOT exposed publicly: the host
+      # mapping above binds it to 127.0.0.1, so only nginx can reach it.
+      - NOCOSTCOIN_API_BIND=0.0.0.0
+      # Guards the endpoints that act as the node (transaction/create,
+      # validator/register, wallet/new, wallet/recover).
+      - NOCOSTCOIN_API_TOKEN=${NOCOSTCOIN_API_TOKEN:-}
+      - NOCOSTCOIN_ENABLE_FAUCET=1
+    restart: unless-stopped
+    networks:
+      - nocostcoin-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+networks:
+  nocostcoin-network:
+    driver: bridge

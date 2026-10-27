@@ -116,7 +116,6 @@ impl Mempool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::Crypto;
     use crate::storage::Storage;
     use tempfile::TempDir;
 
@@ -127,11 +126,11 @@ mod tests {
         let storage = Storage::new(temp_dir.path()).unwrap();
         let mut state = State::new(storage);
         
-        let sender_keypair = Crypto::generate_keypair();
-        let receiver_keypair = Crypto::generate_keypair();
-        
-        let sender_addr = sender_keypair.public.to_bytes().to_vec();
-        let receiver_addr = receiver_keypair.public.to_bytes().to_vec();
+        let sender_keypair = crate::wallet::Wallet::new().keypair;
+        let receiver_keypair = crate::wallet::Wallet::new().keypair;
+
+        let sender_addr = sender_keypair.verifying_key().to_bytes().to_vec();
+        let receiver_addr = receiver_keypair.verifying_key().to_bytes().to_vec();
         
         // Fund sender
         state.set_balance(sender_addr.clone(), 100);

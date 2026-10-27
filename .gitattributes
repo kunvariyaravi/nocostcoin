@@ -1,0 +1,7 @@
+# Shell scripts are deployed to Linux (the GCP VM) and would fail with a
+# "bad interpreter" error if they ever picked up CRLF line endings.
+*.sh text eol=lf
+
+# Windows-only launchers.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

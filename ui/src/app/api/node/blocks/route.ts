@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { NODE_API_URL } from '@/lib/nodeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
         const limit = searchParams.get('limit') || '10';
 
         // Use environment variable or fallback to localhost
-        const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const backendUrl = NODE_API_URL;
 
         let url = `${backendUrl}/blocks?limit=${limit}`;
         if (start_height) {

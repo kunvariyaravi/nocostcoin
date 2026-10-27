@@ -10,10 +10,11 @@ bootstrap_peers = [
 listen_addr = "/ip4/0.0.0.0/tcp/9000"
 
 [genesis]
+chain_id = 1337
 # Dec 9 2024 00:00:00 UTC
 genesis_time = 1733760000000 
 genesis_seed = "nocostcoin-testnet-official-seed-v1"
-initial_validators = [
+initial_validator_seeds = [
     "nocostcoin_bootnode_1_seed",
     "nocostcoin_bootnode_2_seed",
     "nocostcoin_bootnode_3_seed"

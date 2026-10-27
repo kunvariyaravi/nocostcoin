@@ -1,17 +1,19 @@
-# Nocostcoin Configuration
+# Nocostcoin Configuration - Local single node (no VPS needed)
+# This runs isolated: empty bootstrap_peers = no dial to external VPS
+
+data_dir = "C:/nocostcoin/data/local"
 
 [network]
 port = 9000
-bootstrap_peers = [
-    "/ip4/72.62.167.94/tcp/9000/p2p/12D3KooWLDNRYGTyFhLuD29m3eDazhhVQQfXCowSnBfTnh1y5xtH"
-]
+bootstrap_peers = []
 listen_addr = "/ip4/127.0.0.1/tcp/9000"
 
 [genesis]
+chain_id = 1337
 # Dec 9 2024 00:00:00 UTC
 genesis_time = 1733760000000 
 genesis_seed = "nocostcoin-genesis-seed"
-initial_validators = [
+initial_validator_seeds = [
     "nocostcoin_node_9000_seed",
     "nocostcoin_node_9001_seed",
     "nocostcoin_node_9002_seed"

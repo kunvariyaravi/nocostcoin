@@ -9,8 +9,8 @@ export default function PreFooter() {
                     Join the thousands of developers building on the future of deterministic consensus.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Link href="/testnet" className="btn-primary flex items-center justify-center">
-                        Launch Testnet
+                    <Link href="/mainnet" className="btn-primary flex items-center justify-center">
+                        Launch Mainnet
                     </Link>
                     <Link href="/contact" className="px-8 py-3 bg-transparent text-white border border-slate-700 rounded-lg font-semibold hover:bg-white/5 transition-colors">
                         Contact Sales

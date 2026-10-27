@@ -452,7 +452,14 @@ impl State {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use crate::crypto::Crypto;
+
+    /// An Ed25519 signing key plus its matching address. Transactions are
+    /// signed with Ed25519, so the sender address must be the verifying key.
+    fn test_account() -> (ed25519_dalek::SigningKey, Vec<u8>) {
+        let keypair = crate::wallet::Wallet::new().keypair;
+        let address = keypair.verifying_key().to_bytes().to_vec();
+        (keypair, address)
+    }
 
     fn create_test_state() -> (State, TempDir) {
         let temp_dir = TempDir::new().unwrap();
@@ -463,8 +470,7 @@ mod tests {
     #[test]
     fn test_asset_creation_and_transfer() {
         let (mut state, _temp) = create_test_state();
-        let keypair = Crypto::generate_keypair();
-        let sender = keypair.public.to_bytes().to_vec();
+        let (keypair, sender) = test_account();
         let receiver = vec![4, 5, 6];
 
         // 1. Create Asset
@@ -512,11 +518,9 @@ mod tests {
     fn test_channel_lifecycle() {
         let (mut state, _temp) = create_test_state();
 
-        let sender_pair = Crypto::generate_keypair();
-        let sender = sender_pair.public.to_bytes().to_vec();
-        
-        let partner_pair = Crypto::generate_keypair();
-        let partner = partner_pair.public.to_bytes().to_vec();
+        let (sender_pair, sender) = test_account();
+
+        let (_, partner) = test_account();
 
         state.set_balance(sender.clone(), 1000);
 
@@ -562,11 +566,9 @@ mod tests {
     fn test_delegation() {
         let (mut state, _temp) = create_test_state();
 
-        let owner_pair = Crypto::generate_keypair();
-        let owner = owner_pair.public.to_bytes().to_vec();
-        
-        let delegate_pair = Crypto::generate_keypair();
-        let delegate = delegate_pair.public.to_bytes().to_vec();
+        let (owner_pair, owner) = test_account();
+
+        let (_, delegate) = test_account();
 
         state.set_balance(owner.clone(), 100);
 
@@ -587,8 +589,7 @@ mod tests {
     #[test]
     fn test_insufficient_asset_balance() {
         let (mut state, _temp) = create_test_state();
-        let keypair = Crypto::generate_keypair();
-        let sender = keypair.public.to_bytes().to_vec();
+        let (keypair, sender) = test_account();
         let receiver = vec![1, 2, 3];
 
         // Create asset
@@ -628,11 +629,9 @@ mod tests {
     #[test]
     fn test_mint_nft_not_owner() {
         let (mut state, _temp) = create_test_state();
-        let owner_pair = Crypto::generate_keypair();
-        let owner = owner_pair.public.to_bytes().to_vec();
-        
-        let attacker_pair = Crypto::generate_keypair();
-        let attacker = attacker_pair.public.to_bytes().to_vec();
+        let (owner_pair, owner) = test_account();
+
+        let (attacker_pair, attacker) = test_account();
 
         // Owner creates collection
         let create_tx = Transaction::new(
