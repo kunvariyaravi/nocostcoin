@@ -4,21 +4,44 @@
 # Env:
 #   DOMAIN=your.domain.com          (optional - enables nginx + Let's Encrypt)
 #   NOCOSTCOIN_API_TOKEN=<secret>   (recommended - protects write endpoints)
+#   NOCOSTCOIN_IMAGE=<image>        (optional - pull this image instead of
+#                                    building from ./core; use on a small VM
+#                                    where the RocksDB build would OOM)
 #   MODE=setup|identity|restart     (default: setup)
-#   RUN_TESTS=1                     (optional - runs the Rust test suite in Docker)
+#   RUN_TESTS=1                     (optional - runs the Rust test suite in Docker,
+#                                    only meaningful when building locally)
 #
 # Modes:
-#   setup     install Docker, fetch the code, build and start the node
+#   setup     install Docker, fetch the code, start the node
 #   identity  print this node's validator pubkey + wallet address (the ceremony)
-#   restart   rebuild and restart after the genesis file has been updated
+#   restart   restart after the genesis file has been updated
 #
-# Safe to re-run: it pulls the latest code, rebuilds and restarts.
+# Safe to re-run: it pulls the latest code and restarts.
 set -e
 
 DOMAIN="${DOMAIN:-}"
 MODE="${MODE:-setup}"
+IMAGE="${NOCOSTCOIN_IMAGE:-}"
+# Exported so `sudo -E docker compose` sees it: without it compose falls back to
+# the local image name, finds it missing, and starts building RocksDB on the VM
+# instead of using the prebuilt image.
+export NOCOSTCOIN_IMAGE="$IMAGE"
 REPO_DIR=/opt/nocostcoin/nocostcoin
 COMPOSE="docker compose -f docker-compose.gcp-validator.yml"
+
+ensure_swap() {
+  # The Always Free e2-micro has 1 GB of RAM. A swap file keeps Docker and the
+  # node from being OOM-killed, and lets a local RocksDB build finish rather
+  # than dying part way through.
+  if [ -f /swapfile ]; then return; fi
+  echo "=== Adding a 2G swap file (small VM) ==="
+  sudo fallocate -l 2G /swapfile 2>/dev/null \
+    || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile > /dev/null
+  sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+}
 
 install_docker() {
   if ! command -v docker &>/dev/null; then
@@ -36,7 +59,7 @@ install_docker() {
   sudo ufw default deny incoming
   sudo ufw default allow outgoing
   # 22 ssh, 80/443 http+https (nginx), 9000 p2p. The API (8000) is NOT opened:
-  # it is reachable through nginx on https://$DOMAIN/api/node only.
+  # it is reachable through nginx only.
   for p in 22 80 443 9000; do sudo ufw allow $p/tcp; done
 }
 
@@ -56,6 +79,35 @@ fetch_code() {
   fi
 }
 
+# Log Docker in to Artifact Registry using the VM's own service account, read
+# straight from the metadata server - no gcloud install needed on the VM.
+docker_login_ar() {
+  local registry="${IMAGE%%/*}"
+  local token
+  token=$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+    | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [ -z "$token" ]; then
+    echo "WARNING: no metadata token available - assuming docker is already logged in"
+    return 0
+  fi
+  echo "$token" | sudo docker login -u oauth2accesstoken --password-stdin "https://${registry}"
+}
+
+# Make the image available locally: pull it when NOCOSTCOIN_IMAGE is set,
+# otherwise build it here from ./core.
+ensure_image() {
+  cd "$REPO_DIR"
+  if [ -n "$IMAGE" ]; then
+    echo "=== Pulling prebuilt image: $IMAGE ==="
+    docker_login_ar
+    sudo docker pull "$IMAGE"
+  else
+    echo "=== Building the node image on this VM ==="
+    sudo $COMPOSE build node-1
+  fi
+}
+
 run_tests() {
   echo "=== Rust test suite (inside the Docker builder) ==="
   sudo docker build --target builder -t nocostcoin-builder ./core
@@ -65,9 +117,19 @@ run_tests() {
 print_identity() {
   echo "=== Genesis ceremony: this node's identity ==="
   echo "The secret keys stay on this machine. Only the values below are public."
+  ensure_image
+  # -E so the compose interpolation still sees NOCOSTCOIN_IMAGE.
+  sudo -E $COMPOSE run --rm node-1 --config config/mainnet-gcp.toml --identity
+}
+
+start_node() {
   cd "$REPO_DIR"
-  sudo $COMPOSE build node-1
-  sudo $COMPOSE run --rm node-1 --config config/mainnet-gcp.toml --identity
+  sudo -E $COMPOSE down 2>/dev/null || true
+  if [ -n "$IMAGE" ]; then
+    sudo -E $COMPOSE up -d --no-build
+  else
+    sudo -E $COMPOSE up -d --build
+  fi
 }
 
 setup_nginx() {
@@ -80,17 +142,17 @@ setup_nginx() {
     sudo ln -sf /etc/nginx/sites-available/nocostcoin /etc/nginx/sites-enabled/nocostcoin
     sudo rm -f /etc/nginx/sites-enabled/default
     sudo nginx -t && sudo systemctl reload nginx
-    sudo certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" \
-      || echo "certbot failed - ensure the DNS A records point at this VM, then re-run certbot manually"
-    echo "API:  https://${DOMAIN}/api/node/stats"
-    echo "UI:   https://${DOMAIN}  (start it with: docker compose -f docker-compose.gcp-validator.yml --profile ui up -d)"
+    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" \
+      || echo "certbot failed - ensure the DNS A record points at this VM, then re-run certbot manually"
+    echo "API: https://${DOMAIN}/stats"
   else
     echo "DOMAIN not set - skipping nginx."
-    echo "The API and UI are loopback-only on this VM. Tunnel them from your machine:"
-    echo "  gcloud compute ssh $VM -- -L 8000:localhost:8000 -L 3000:localhost:3000"
+    echo "The API is loopback-only on this VM. Tunnel it from your machine:"
+    echo "  gcloud compute ssh nocostcoin-validator -- -L 8000:localhost:8000"
   fi
 }
 
+ensure_swap
 install_docker
 fetch_code
 
@@ -99,15 +161,14 @@ case "$MODE" in
     print_identity
     ;;
   restart)
-    cd "$REPO_DIR"
-    sudo -E $COMPOSE down
-    sudo -E $COMPOSE up -d --build
+    ensure_image
+    start_node
     ;;
   setup)
     cd "$REPO_DIR"
     if [ "${RUN_TESTS:-0}" = "1" ]; then run_tests; fi
-    sudo -E $COMPOSE down || true
-    sudo -E $COMPOSE up -d --build
+    ensure_image
+    start_node
     sleep 15
     sudo $COMPOSE ps
     if curl -fs http://127.0.0.1:8000/health > /dev/null; then

@@ -1,20 +1,32 @@
 # Nocostcoin GCP validator launcher - run from Windows PowerShell.
 # Creates the VM, opens the firewall, then runs deploy/gcp/setup-validator.sh on it.
 #
-#   .\deploy\gcp\launch-validator.ps1 -Project my-gcp-project -Domain validator.example.com
+#   .\deploy\gcp\launch-validator.ps1 -Project my-gcp-project -Domain api.example.com
 #
-# Prerequisite: a GCP project with billing enabled.
+# Defaults target the Always Free tier: an e2-micro in us-central1 on a 30 GB
+# standard disk costs nothing. Pass -Image to pull a Cloud Build image instead
+# of building RocksDB on the VM (the micro only has 1 GB of RAM):
+#
+#   gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT/nocostcoin/node:v1 `
+#     --machine-type=e2-highcpu-8 --timeout=3600s ./core
+#   .\deploy\gcp\launch-validator.ps1 -Project PROJECT `
+#     -Image us-central1-docker.pkg.dev/PROJECT/nocostcoin/node:v1
 param(
   [string]$Project = "YOUR_PROJECT_ID",
   [string]$Zone = "us-central1-a",
   [string]$VM = "nocostcoin-validator",
   [string]$Domain = "",
   [string]$ApiToken = "",
+  [string]$Image = "",
+  [string]$MachineType = "e2-micro",
+  [string]$DiskSize = "30GB",
+  [string]$DiskType = "pd-standard",
   [string]$Mode = "setup",        # setup | identity | restart
   [switch]$Recreate
 )
 
 $ErrorActionPreference = "Stop"
+$Region = $Zone -replace "-[a-z]$", ""
 
 # 1. Install gcloud if missing
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
@@ -32,7 +44,7 @@ gcloud auth login
 gcloud config set project $Project
 gcloud config set compute/zone $Zone
 
-# 3. VM. e2-standard-2 (2 vCPU / 8 GB) - the RocksDB build alone wants ~4 GB.
+# 3. VM
 $tag = "nocostcoin-validator"
 if ($Recreate) {
   Write-Host "Deleting existing instance $VM ..."
@@ -41,25 +53,25 @@ if ($Recreate) {
 
 if (-not (gcloud compute instances describe $VM --zone $Zone 2>$null)) {
   gcloud compute instances create $VM `
-    --machine-type=e2-standard-2 `
+    --machine-type=$MachineType `
     --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud `
-    --boot-disk-size=40GB --boot-disk-type=pd-balanced `
+    --boot-disk-size=$DiskSize --boot-disk-type=$DiskType `
     --tags=$tag `
-    --scopes=compute-rw,logging-write,storage-ro
+    --scopes=cloud-platform
 }
 
 # 4. Static external IP so the published bootstrap multiaddr stays valid.
-gcloud compute addresses describe nocostcoin-validator-ip --region "$(gcloud config get-value compute/region 2>$null)" > $null 2>&1
+gcloud compute addresses describe nocostcoin-ip --region $Region > $null 2>&1
 if ($LASTEXITCODE -ne 0) {
-  gcloud compute addresses create nocostcoin-validator-ip --region "$(gcloud config get-value compute/region)"
+  gcloud compute addresses create nocostcoin-ip --region $Region
 }
-gcloud compute instances add-access-config $VM --zone $Zone --address nocostcoin-validator-ip 2>$null
+gcloud compute instances add-access-config $VM --zone $Zone --address nocostcoin-ip 2>$null
 
 # 5. Firewall: ssh, http/s and p2p. The API port (8000) stays closed - it is
-#    only reachable through nginx on https://$Domain/api/node.
-gcloud compute firewall-rules describe nocostcoin-validator-allow > $null 2>&1
+#    only reachable through nginx.
+gcloud compute firewall-rules describe nocostcoin-allow > $null 2>&1
 if ($LASTEXITCODE -ne 0) {
-  gcloud compute firewall-rules create nocostcoin-validator-allow `
+  gcloud compute firewall-rules create nocostcoin-allow `
     --allow=tcp:22,tcp:80,tcp:443,tcp:9000 `
     --target-tags=$tag `
     --description="ssh, http/s, p2p"
@@ -79,6 +91,7 @@ gcloud compute scp deploy/gcp/setup-validator.sh ${VM}:~/setup-validator.sh --zo
 $envVars = "MODE=$Mode"
 if ($Domain)   { $envVars += " DOMAIN=$Domain" }
 if ($ApiToken) { $envVars += " NOCOSTCOIN_API_TOKEN=$ApiToken" }
+if ($Image)    { $envVars += " NOCOSTCOIN_IMAGE=$Image" }
 
 # The sed strips any CRLF that Windows may have introduced - a shell script with
 # CRLF line endings fails on Linux with "bad interpreter".

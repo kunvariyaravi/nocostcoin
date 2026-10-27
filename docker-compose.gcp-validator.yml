@@ -17,6 +17,10 @@ version: '3.8'
 
 services:
   node-1:
+    # On a small VM (e2-micro, Always Free) the image is built by Cloud Build
+    # and pulled here: set NOCOSTCOIN_IMAGE and run with --no-build. Left unset,
+    # the image is built locally from ./core instead.
+    image: ${NOCOSTCOIN_IMAGE:-nocostcoin-validator:local}
     build:
       context: ./core
       dockerfile: Dockerfile

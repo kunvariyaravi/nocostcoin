@@ -1,0 +1,11 @@
+# Keep the Cloud Build upload small - the local cargo target directory is
+# several GB and is rebuilt inside the builder image anyway.
+target/
+**/*.rs.bk
+
+# Local runtime state
+nocostcoin_db*/
+*.key
+data/
+
+errors.txt
