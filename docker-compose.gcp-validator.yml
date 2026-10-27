@@ -47,7 +47,9 @@ services:
       # Guards the endpoints that act as the node (transaction/create,
       # validator/register, wallet/new, wallet/recover).
       - NOCOSTCOIN_API_TOKEN=${NOCOSTCOIN_API_TOKEN:-}
-      - NOCOSTCOIN_ENABLE_FAUCET=1
+      # The faucet mints coins from the validator's wallet. This chain does not
+      # distribute tokens, so it stays off.
+      - NOCOSTCOIN_ENABLE_FAUCET=0
     restart: unless-stopped
     networks:
       - nocostcoin-network
