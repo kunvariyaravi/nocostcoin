@@ -607,7 +607,7 @@ impl Node {
                                 nonce + pending_nonce_offset,
                                 &wallet_keypair
                             );
-                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                                 network_client.broadcast_transaction(tx.clone());
                                 println!("Sent tx: {}", hex::encode(tx.hash()));
                             } else {
@@ -663,7 +663,7 @@ impl Node {
                         
                         println!("Generated tx with nonce {}", tx.nonce);
                         
-                        if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                        if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                             network_client.broadcast_transaction(tx);
                         }
                     }
@@ -787,7 +787,7 @@ impl Node {
                 // Check for incoming transactions
                 while let Ok(tx) = tx_rx.try_recv() {
                     println!("Received transaction from network");
-                    if let Err(e) = mempool.add_transaction(tx, &chain.state) {
+                    if let Err(e) = mempool.add_transaction(tx, &chain.state, &chain.validators) {
                         println!("Failed to add tx to mempool: {}", e);
                     } else {
                         println!("Added tx to mempool");
@@ -818,7 +818,7 @@ impl Node {
                         }
                         crate::api::ApiCommand::SubmitTransaction(tx, respond_to) => {
                             let hash = hex::encode(tx.hash());
-                             if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                             if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                                  network_client.broadcast_transaction(tx);
                                  let _ = respond_to.send(Ok(hash));
                              } else {
@@ -852,7 +852,7 @@ impl Node {
                             
                             let hash = hex::encode(tx.hash());
 
-                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                                  network_client.broadcast_transaction(tx);
                                  let _ = respond_to.send(Ok(hash));
                             } else {
@@ -1033,7 +1033,7 @@ impl Node {
                             let hash = hex::encode(tx.hash());
                             println!("📝 Faucet: Created transaction with hash: {}", hash);
 
-                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state) {
+                            if let Ok(_) = mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                                 println!("✓ Faucet: Transaction added to mempool. Size: {}", mempool.len());
                                 network_client.broadcast_transaction(tx);
                                 println!("📡 Faucet: Transaction broadcasted to network");
@@ -1256,7 +1256,7 @@ impl Node {
 
                             let hash = hex::encode(tx.hash());
 
-                            match mempool.add_transaction(tx.clone(), &chain.state) {
+                            match mempool.add_transaction(tx.clone(), &chain.state, &chain.validators) {
                                 Ok(_) => {
                                     network_client.broadcast_transaction(tx);
                                     println!("✅ Registered validator {} (deposit {})", hex::encode(&consensus_pubkey), deposit);

@@ -273,6 +273,16 @@ impl Chain {
         // Validate transaction
         tx.validate()?;
 
+        // A validator may only register once. This has to be checked before
+        // the state is applied: the state deducts the deposit, so a
+        // registration that the validator set then rejects would take the
+        // deposit and give nothing back.
+        if let crate::transaction::TransactionData::RegisterValidator { consensus_pubkey, .. } = &tx.data {
+            if self.validators.get_validator(consensus_pubkey).is_some() {
+                return Err("Validator is already registered".to_string());
+            }
+        }
+
         // Execute transaction logic
         self.state.apply_transaction(tx)?;
 

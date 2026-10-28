@@ -19,7 +19,12 @@ impl Mempool {
     }
 
     /// Add a transaction to the mempool
-    pub fn add_transaction(&mut self, tx: Transaction, state: &State) -> Result<(), String> {
+    pub fn add_transaction(
+        &mut self,
+        tx: Transaction,
+        state: &State,
+        validators: &crate::validator::ValidatorSet,
+    ) -> Result<(), String> {
         // 1. Check capacity
         if self.transactions.len() >= self.capacity {
             return Err("Mempool is full".to_string());
@@ -58,8 +63,16 @@ impl Mempool {
                      return Err("Channel does not exist".to_string());
                  }
             },
-             crate::transaction::TransactionData::DelegateSpend { .. } => {
-                 // Nothing to check against state for setting up delegate
+            crate::transaction::TransactionData::DelegateSpend { .. } => {
+                // Nothing to check against state for setting up delegate
+            },
+            crate::transaction::TransactionData::RegisterValidator { consensus_pubkey, .. } => {
+                // A validator may only register once. The transaction would
+                // be rejected when the block is applied, and because the
+                // mempool keeps offering it, mining would stall for good.
+                if validators.get_validator(consensus_pubkey).is_some() {
+                    return Err("Validator is already registered".to_string());
+                }
             },
             _ => {
                 // Other types logic
@@ -144,7 +157,8 @@ mod tests {
             &sender_keypair
         );
         
-        assert!(mempool.add_transaction(tx.clone(), &state).is_ok());
+        let validators = crate::validator::ValidatorSet::new();
+        assert!(mempool.add_transaction(tx.clone(), &state, &validators).is_ok());
         assert_eq!(mempool.len(), 1);
     }
 }

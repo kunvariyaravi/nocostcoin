@@ -1,0 +1,30 @@
+# Runs the Rust test suite in the cloud.
+#
+# The tests need a real RocksDB, which cannot be built on a machine without
+# libclang - so they run in a builder image that has the toolchain, rather
+# than being skipped locally.
+#
+#   gcloud builds submit --config deploy/gcp/cloudbuild-test.yaml .
+#
+# The multi-node integration test in core/tests/ starts three nodes on one
+# machine and checks that they agree and that the chain progresses, which is
+# what exercises the round-robin leader schedule with more than one validator.
+
+steps:
+  - name: rust:bookworm
+    dir: core
+    env:
+      - CARGO_TERM_COLOR=always
+      - RUST_BACKTRACE=1
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        apt-get update
+        apt-get install -y clang cmake
+        cargo test --release
+
+timeout: 3600s
+options:
+  machineType: E2_HIGHCPU_8

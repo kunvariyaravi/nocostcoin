@@ -21,8 +21,8 @@
 
 [genesis]
 chain_id = 1
-genesis_time = 1793189693893
-genesis_seed = "1c402fa0c7b5a0b1d522c8edc08fb7072515320f75d802e6521b6b3c5fccf1b7"
+genesis_time = 1793191258295
+genesis_seed = "022323152b4b44d56f0d1e22f2cea0f5faa01a980feeafa7275e4ab51a2995e7"
 initial_validators = [
     { consensus_pubkey = "128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c", reward_address = "dd5b099c02335b7e4f3d6f5e36ea85f9d02117318d52ce7e1fa3cb54dfc2ebeb" },
 ]
