@@ -342,7 +342,7 @@ export default function MainnetDashboard() {
                     </div>
                     <div className="flex-1 flex flex-col justify-between">
                         <p className="text-sm text-slate-400 mb-4">
-                            Request 1,000 free NCC Mainnet tokens. Available once every 24 hours per wallet.
+                            Request 100 free NCC Mainnet tokens. Each wallet can claim once.
                         </p>
 
                         <div className="space-y-4">
@@ -356,7 +356,7 @@ export default function MainnetDashboard() {
                                 disabled={faucetLoading || !wallet}
                                 className="w-full btn-secondary border-violet-500/50 text-violet-300 hover:bg-violet-500/10 hover:border-violet-400 hover:text-white transition-all"
                             >
-                                {faucetLoading ? 'Requesting...' : 'Request 1,000 NCC'}
+                                {faucetLoading ? 'Requesting...' : 'Request 100 NCC'}
                             </button>
                         </div>
                     </div>
