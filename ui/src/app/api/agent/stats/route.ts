@@ -44,20 +44,33 @@ function transactionHash(
  */
 export async function GET() {
     try {
-        const [blocksRes, headRes] = await Promise.all([
-            fetch(`${NODE_API_URL}/blocks?limit=100`, { cache: 'no-store' }),
-            fetch(`${NODE_API_URL}/stats`, { cache: 'no-store' }),
-        ]);
-
-        if (!blocksRes.ok || !headRes.ok) {
+        const headRes = await fetch(`${NODE_API_URL}/stats`, { cache: 'no-store' });
+        if (!headRes.ok) {
             return NextResponse.json(
                 { error: 'Could not reach the node' },
                 { status: 502 }
             );
         }
-
-        const blocks = await blocksRes.json();
         const head = await headRes.json();
+
+        // The node caps a single page at 100 blocks, so walk backwards to
+        // cover more of the chain. The node prunes blocks older than 1000, so
+        // that is as far back as there is.
+        const blocks: any[] = [];
+        let startHeight = head.height;
+        for (let page = 0; page < 10 && startHeight > 0; page++) {
+            const res = await fetch(
+                `${NODE_API_URL}/blocks?start_height=${startHeight}&limit=100`,
+                { cache: 'no-store' }
+            );
+            if (!res.ok) break;
+            const pageBlocks = await res.json();
+            if (!pageBlocks || pageBlocks.length === 0) break;
+            blocks.push(...pageBlocks);
+            const lowest = Math.min(...pageBlocks.map((b: any) => b.header?.slot ?? 0));
+            if (lowest <= 1) break;
+            startHeight = lowest - 1;
+        }
 
         let payments = 0;
         let volume = 0;
@@ -92,8 +105,9 @@ export async function GET() {
             price_ncc: AGENT_PRICE_NCC,
             service_address: AGENT_SERVICE_ADDRESS,
             block_time_seconds: BLOCK_TIME_SECONDS,
-            payments_in_last_100_blocks: payments,
-            volume_in_last_100_blocks: volume,
+            payments: payments,
+            volume: volume,
+            blocks_scanned: blocks.length,
             recent: recent.slice(-10).reverse(),
         });
     } catch (error) {

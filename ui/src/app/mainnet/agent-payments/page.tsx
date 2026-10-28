@@ -16,8 +16,9 @@ interface AgentStats {
     price_ncc: number;
     service_address: string;
     block_time_seconds: number;
-    payments_in_last_100_blocks: number;
-    volume_in_last_100_blocks: number;
+    payments: number;
+    volume: number;
+    blocks_scanned: number;
     recent: { tx: string; block: string; payer: string; amount: number; slot: number }[];
 }
 
@@ -193,10 +194,13 @@ export default function AgentPaymentsPage() {
                     </h3>
                 </div>
                 <div className="card border-slate-700/50 bg-slate-800/30">
-                    <p className="text-slate-500 text-sm">Calls in last 100 blocks</p>
+                    <p className="text-slate-500 text-sm">Calls on chain</p>
                     <h3 className="text-2xl font-bold text-white mt-1">
-                        {stats ? stats.payments_in_last_100_blocks : '-'}
+                        {stats ? stats.payments : '-'}
                     </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                        {stats ? `last ${stats.blocks_scanned} blocks` : ''}
+                    </p>
                 </div>
             </div>
 
