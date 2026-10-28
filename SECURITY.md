@@ -57,10 +57,10 @@ section as the current, real risk surface.
 
 These are real gaps, not theoretical ones.
 
-- **No integer overflow checks in stake accounting.** There is no `checked_add` /
-  `checked_sub` in `validator.rs` or `chain.rs`. Rust release builds wrap
-  silently. Stakes are `u64` so this needs implausibly large values to trigger,
-  but it is not guarded.
+- **No integer overflow checks in the reward accounting.** There is no
+  `checked_add` / `checked_sub` on the block reward payout in `state.rs`. Rust
+  release builds wrap silently. The amounts are `u64` so this needs implausibly
+  large values to trigger, but it is not guarded.
 - **No length caps on asset names/symbols.** `validate_logic` rejects empty
   names and zero supply, but nothing bounds their length.
 - **No rate limiting.** Per-IP throttling is left to nginx.
@@ -70,15 +70,18 @@ These are real gaps, not theoretical ones.
   never committed.
 - **No slashing evidence gossip.** Equivocation is detected locally only; peers
   are not told.
-- **`/validator/register` is disabled.** Leader election matches the Schnorrkel
-  consensus key, but the registration transaction can only attest to the Ed25519
-  wallet. Registering therefore added an unrelated key to the validator set,
-  diluted the real validators' slot odds and burned the stake. A working version
-  needs a registration transaction that carries a consensus public key and a
-  signature proving ownership of it. Until then validators must be listed in the
-  genesis.
+- **The validator set is kept in memory and rebuilt on startup.** It is
+  persisted to disk, but a node that misses a block containing a registration
+  does not learn about that validator until it re-syncs. The set also has to
+  match exactly across nodes, because the round-robin schedule is a function of
+  it - a node whose set differs would reject valid blocks.
 - **The faucet uses the node's hot wallet.** If it is enabled publicly, the
-  node's wallet pays out. Use a dedicated faucet key before relying on it.
+  node's wallet pays out - the same wallet that holds the 10,000,000 NCC faucet
+  float. A dedicated faucet key would be better.
+- **The faucet is one-per-address, not Sybil-proof.** Anyone can claim from any
+  address they control, once each. The 10,000,000 NCC float therefore bounds the
+  total outflow at 100,000 claims, but a determined operator can claim from many
+  addresses.
 - **`chain_id` is not part of the genesis block hash**, so the genesis hash does
   not commit to the validator set. The genesis `[genesis]` block must still be
   byte-identical across nodes; a test enforces that for the shipped configs.

@@ -62,8 +62,10 @@ async fn test_multi_node_consensus() {
     config1.genesis.genesis_seed = genesis_seed.clone();
     config1.mining.validator_seed = Some("node1_seed".to_string());
     config1.data_dir = Some(dir1.path().to_path_buf());
-    // Initial validators must function for consensus
-    config1.genesis.initial_validators = vec![
+    // Initial validators must function for consensus. The seeds are listed so
+    // the genesis knows which validators to expect; the reward address of each
+    // is derived from the same seed.
+    config1.genesis.initial_validator_seeds = vec![
         "node1_seed".to_string(),
         "node2_seed".to_string(),
         "node3_seed".to_string(),

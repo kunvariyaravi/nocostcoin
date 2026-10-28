@@ -52,14 +52,28 @@ Look for "Connected to peer" messages. You can also check the health endpoint:
 curl -s http://127.0.0.1:8000/health
 ```
 
-## Step 5: Become a Validator (Staking)
+## Step 5: Become a Validator
 
-> **Stake-based registration is not available yet.** `/validator/register` now
-> returns an error. Leader election matches the validator's Schnorrkel consensus
-> key, but the registration transaction can only prove control of the Ed25519
-> wallet, so it used to add an unrelated key to the validator set and dilute the
-> real validators' slot odds. Validators must be listed in the genesis
-> `initial_validators` list. See `LAUNCH.md`.
+> **Anyone can register.** There is no stake and no allowlist. A validator locks
+> a refundable **100 NCC deposit** and then takes an equal share of the slots -
+> there is no stake weighting, so holding more coins buys no extra blocks. The
+> deposit is an anti-Sybil measure, and it is forfeited only by a validator that
+> signs two different blocks for the same slot.
+
+To register this node, it needs at least 100 NCC in its wallet (claim some from
+the faucet first) and then:
+
+```bash
+curl -X POST http://127.0.0.1:8000/validator/register \
+  -H 'Content-Type: application/json' \
+  -d '{"deposit":100}'
+```
+
+The node signs the registration with its own consensus key, so it proves it holds
+the key it is registering. The registration takes effect in the next epoch.
+
+To leave the set, send an `UnregisterValidator` transaction - the deposit is
+refunded.
 
 1.  **Generate a Wallet**:
     ```bash

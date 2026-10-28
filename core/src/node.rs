@@ -26,6 +26,12 @@ enum CliCommand {
     Help,
 }
 
+/// The amount of NCC a faucet claim pays out.
+///
+/// Each address can claim once, ever. The faucet pool holds 10,000,000 NCC,
+/// so it can serve 100,000 unique addresses.
+pub const FAUCET_AMOUNT: u64 = 100;
+
 /// Generate a deterministic keypair from a seed string (Schnorrkel)
 fn generate_validator_keypair(seed_str: &str) -> SchnorrkelKeypair {
     let mut seed = [0u8; 32];
@@ -49,28 +55,34 @@ fn generate_wallet_key(seed_str: &str) -> SigningKey {
     SigningKey::from_bytes(&seed)
 }
 
-/// Register a founding validator with the genesis stake, once per public key.
+/// Register a founding validator, once per public key.
+///
+/// The validator joins at epoch 0 and counts for exactly one turn in the
+/// round-robin schedule. It holds a refundable deposit, not a stake: there is
+/// no stake weighting any more.
 fn register_genesis_validator(
     chain: &mut Chain,
     seen: &mut Vec<Vec<u8>>,
     pubkey: Vec<u8>,
+    reward_address: Vec<u8>,
 ) {
     if seen.contains(&pubkey) {
         return;
     }
     seen.push(pubkey.clone());
 
-    // Genesis funding is persisted, so credit it only once.
-    if chain.state.get_balance(&pubkey) == 0 {
-        chain.state.set_balance(pubkey.clone(), 1_000_000);
-    }
-
-    // The validator set lives in memory only. It has to be rebuilt on every
-    // start, so it must not be tied to the balance check: after a restart the
-    // balance is already on disk, and skipping this left the set empty and the
-    // node unable to win any slot ever again.
+    // The validator set lives in memory only, so it has to be rebuilt on
+    // every start. It must not be tied to any balance check: after a restart
+    // the balance is already on disk, and skipping this left the set empty and
+    // the node unable to win any slot ever again.
     if chain.validators.get_validator(&pubkey).is_none() {
-        let _ = chain.validators.register_validator(pubkey, 1_000_000, 0);
+        let _ = chain.validators.register_validator(
+            pubkey,
+            reward_address,
+            crate::validator::VALIDATOR_DEPOSIT,
+            0,
+            0,
+        );
     }
 }
 
@@ -306,44 +318,81 @@ impl Node {
         let mut genesis_validator_pubkeys: Vec<Vec<u8>> = Vec::new();
 
         for entry in &self.config.genesis.initial_validators {
-            let pubkey = hex::decode(entry.trim()).unwrap_or_else(|e| {
+            let pubkey = hex::decode(entry.consensus_pubkey.trim()).unwrap_or_else(|e| {
                 panic!(
                     "Invalid validator pubkey '{}' in genesis.initial_validators: {}",
-                    entry, e
+                    entry.consensus_pubkey, e
                 )
             });
             assert_eq!(
                 pubkey.len(),
                 32,
                 "Validator pubkey '{}' must be 32 bytes",
-                entry
+                entry.consensus_pubkey
             );
-            register_genesis_validator(&mut chain, &mut genesis_validator_pubkeys, pubkey);
+            let reward_address = hex::decode(entry.reward_address.trim()).unwrap_or_else(|e| {
+                panic!(
+                    "Invalid reward address '{}' in genesis.initial_validators: {}",
+                    entry.reward_address, e
+                )
+            });
+            assert_eq!(
+                reward_address.len(),
+                32,
+                "Reward address '{}' must be 32 bytes",
+                entry.reward_address
+            );
+            register_genesis_validator(
+                &mut chain,
+                &mut genesis_validator_pubkeys,
+                pubkey,
+                reward_address,
+            );
         }
 
         for seed in &self.config.genesis.initial_validator_seeds {
             let node_kp = generate_validator_keypair(seed);
+            // The devnet reward address is derived from the same seed, so it
+            // is reproducible by every node.
+            let reward_address = generate_wallet_key(seed)
+                .verifying_key()
+                .to_bytes()
+                .to_vec();
             register_genesis_validator(
                 &mut chain,
                 &mut genesis_validator_pubkeys,
                 node_kp.public.to_bytes().to_vec(),
+                reward_address,
             );
         }
 
         // Fund the accounts declared in genesis. Funding has to live in the
         // genesis file rather than being derived per node, otherwise every
         // node computes a different genesis state and the chain forks.
-        for account in &self.config.genesis.initial_funded_accounts {
-            let address = hex::decode(account.trim()).unwrap_or_else(|e| {
-                panic!(
-                    "Invalid funded account '{}' in genesis.initial_funded_accounts: {}",
-                    account, e
-                )
-            });
-            assert_eq!(address.len(), 32, "Funded account '{}' must be 32 bytes", account);
-            if chain.state.get_balance(&address) == 0 {
-                chain.state.set_balance(address, 1_000_000);
+        //
+        // This runs on every start, so it must only take effect once. A
+        // restart must not re-fund a drained account.
+        if !chain.storage.genesis_applied() {
+            for account in &self.config.genesis.initial_funded_accounts {
+                let address = hex::decode(account.address.trim()).unwrap_or_else(|e| {
+                    panic!(
+                        "Invalid funded account '{}' in genesis.initial_funded_accounts: {}",
+                        account.address, e
+                    )
+                });
+                assert_eq!(address.len(), 32, "Funded account '{}' must be 32 bytes", account.address);
+                chain.state.set_balance(address, account.amount);
             }
+
+            // The reward pool is topped up once per reward period, so it
+            // starts with one period's worth of rewards already in it.
+            let reward_pool = crate::pools::reward_pool_address();
+            chain.state.set_balance(
+                reward_pool,
+                crate::consensus::REWARD_PER_PERIOD,
+            );
+
+            chain.storage.mark_genesis_applied().ok();
         }
 
         let am_genesis_validator = genesis_validator_pubkeys.contains(&identity.validator_pubkey);
@@ -365,7 +414,13 @@ impl Node {
                   // Fallback for standalone dev mode: fund self
                   info!("Funding self (standalone mode)...");
                   chain.state.set_balance(my_address.clone(), 1_000_000);
-                  let _ = chain.validators.register_validator(my_address.clone(), 1_000_000, 0);
+                  let _ = chain.validators.register_validator(
+                      my_address.clone(),
+                      my_address.clone(),
+                      crate::validator::VALIDATOR_DEPOSIT,
+                      0,
+                      0,
+                  );
              }
         }
         
@@ -613,20 +668,27 @@ impl Node {
                         }
                     }
 
-                    // 2. Secret Leader Election Check
+                    // 2. Round-Robin Leader Check
+                    // The schedule is deterministic: every active validator
+                    // gets an equal share of the slots, and there is no stake
+                    // weighting.
                     let parent = chain.get_head();
+                    let epoch = chain.consensus.get_epoch(current_slot);
+                    let my_pubkey_bytes = validator_keypair.public.to_bytes();
+
+                    if chain.validators.is_slot_leader(&my_pubkey_bytes, current_slot, epoch) {
+                         println!("🎰 Scheduled leader for slot {}", current_slot);
+                    } else {
+                        // Not this node's turn
+                        continue;
+                    }
+
+                    // The VRF proof is still produced and verified: it is what
+                    // proves the producer holds the consensus key.
                     let seed = crate::consensus::Consensus::compute_vrf_seed(&parent.header.vrf_output, current_slot);
                     let (vrf_out, vrf_proof) = Crypto::vrf_sign(&validator_keypair, &seed);
                     let vrf_output_bytes = vrf_out.to_bytes().to_vec();
                     let vrf_proof_bytes = vrf_proof.to_bytes().to_vec();
-                    let my_pubkey_bytes = validator_keypair.public.to_bytes();
-
-                    if chain.validators.is_slot_leader(&my_pubkey_bytes, &vrf_output_bytes) {
-                         println!("🎰 Won Secret Leader Election for slot {}", current_slot);
-                    } else {
-                        // Not a leader
-                        continue;
-                    }
 
                     // 3. Produce block
                     println!("⛏️  Mining: Check mempool (size: {})", mempool.len());
@@ -874,8 +936,8 @@ impl Node {
                             let validator = chain.validators.get_validator(&check_address);
                             let response = validator.map(|v| crate::api::ValidatorStatusResponse {
                                 pubkey: hex::encode(&check_address),
-                                stake: v.stake,
-                                is_active: v.stake > 0, // Simplified check
+                                deposit: v.deposit,
+                                is_active: !v.slashed,
                                 last_voted_slot: 0, // TODO: Track last voted slot in Validator struct or locally here
                             });
                             let _ = respond_to.send(response);
@@ -910,22 +972,19 @@ impl Node {
                                 }
                             };
                             
-                            // Check rate limiting
+                            // One claim per address, ever. There is no
+                            // cooldown to wait out - the address simply cannot
+                            // claim a second time.
                             let current_time = chrono::Utc::now().timestamp_millis();
                             match chain.storage.can_claim(&receiver, current_time) {
                                 Ok(can_claim) => {
                                     if !can_claim {
-                                        println!("⏳ Faucet: Address on cooldown");
-                                        // Calculate time remaining
-                                        if let Ok(Some(remaining_ms)) = chain.storage.get_claim_cooldown_remaining(&receiver, current_time) {
-                                            let remaining_hours = remaining_ms / (60 * 60 * 1000);
-                                            let _ = respond_to.send(Err(format!(
-                                                "Faucet cooldown active. Please wait {} hours before claiming again.", 
-                                                remaining_hours
-                                            )));
-                                        } else {
-                                            let _ = respond_to.send(Err("Faucet cooldown active. Please wait 24 hours between claims.".to_string()));
-                                        }
+                                        println!("⛔ Faucet: Address has already claimed");
+                                        let _ = respond_to.send(Err(
+                                            "This address has already claimed from the faucet. \
+                                             Each address can claim 100 NCC once."
+                                                .to_string(),
+                                        ));
                                         continue;
                                     }
                                 }
@@ -935,18 +994,18 @@ impl Node {
                                     continue;
                                 }
                             }
-                            
+
                             // Send tokens
-                            let amount = 1000; // Faucet amount
+                            let amount = FAUCET_AMOUNT;
                             let current_balance = chain.state.get_balance(&my_address);
-                            
+
                             println!("💰 Faucet: Node balance: {} tokens, requested: {} tokens", current_balance, amount);
-                            
+
                             // Check if node has sufficient balance
                             if current_balance < amount {
                                 println!("❌ Faucet: Insufficient node balance ({} < {})", current_balance, amount);
                                 let _ = respond_to.send(Err(format!(
-                                    "Faucet temporarily unavailable: Node balance too low ({} tokens). Please try another node or wait for the node to receive more tokens.",
+                                    "Faucet temporarily unavailable: the faucet pool is empty ({} tokens left). Please try again later.",
                                     current_balance
                                 )));
                                 continue;
@@ -983,15 +1042,13 @@ impl Node {
                                 if let Err(e) = chain.storage.record_faucet_claim(&receiver, current_time) {
                                     eprintln!("⚠️  Warning: Failed to record faucet claim: {}", e);
                                 }
-                                
-                                // Calculate next claim time
-                                const COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000;
-                                let next_claim_time = current_time + COOLDOWN_MS;
-                                
+
+                                // There is no second claim for this address, so
+                                // there is no next claim time.
                                 let response = crate::api::FaucetResponse {
                                     tx_hash: hash,
                                     amount,
-                                    next_claim_time,
+                                    next_claim_time: 0,
                                 };
                                 
                                 println!("✅ Faucet: Successfully sent {} tokens to {}", amount, request.address);
@@ -1121,27 +1178,94 @@ impl Node {
                              let validators = chain.validators.get_all_validators().into_iter().map(|v| {
                                  crate::api::ValidatorStatusResponse {
                                      pubkey: hex::encode(v.pubkey),
-                                     stake: v.stake,
+                                     deposit: v.deposit,
                                      is_active: !v.slashed,
                                      last_voted_slot: 0, // Placeholder
                                  }
                              }).collect();
                              let _ = respond_to.send(validators);
                         }
-                        crate::api::ApiCommand::RegisterValidator(_stake, respond_to) => {
-                            // Stake-based registration cannot work yet. Leader
-                            // election matches the Schnorrkel consensus key, but
-                            // this transaction can only attest to the Ed25519
-                            // wallet, so registering would add an unrelated key
-                            // to the validator set, dilute the real validators'
-                            // slot odds and burn the stake. Refuse loudly rather
-                            // than quietly damaging the chain.
-                            warn!("Rejected /validator/register: validators must be listed in the genesis");
-                            let _ = respond_to.send(Err(
-                                "Stake-based validator registration is not supported. A validator \
-                                 must be listed in the genesis initial_validators list before launch."
-                                    .to_string(),
-                            ));
+                        crate::api::ApiCommand::RegisterValidator(payload, respond_to) => {
+                            // Anyone can register as a validator. The
+                            // registration transaction is signed by the
+                            // node's wallet, so the deposit is paid from the
+                            // node's own balance, and it carries a Schnorrkel
+                            // proof that the node holds the consensus key it
+                            // is registering.
+                            let deposit = payload.deposit;
+                            if deposit < crate::validator::VALIDATOR_DEPOSIT {
+                                let _ = respond_to.send(Err(format!(
+                                    "Deposit must be at least {} NCC",
+                                    crate::validator::VALIDATOR_DEPOSIT
+                                )));
+                                continue;
+                            }
+
+                            let balance = chain.state.get_balance(&my_address);
+                            if balance < deposit {
+                                let _ = respond_to.send(Err(format!(
+                                    "Insufficient balance for deposit: {} NCC available, {} required",
+                                    balance, deposit
+                                )));
+                                continue;
+                            }
+
+                            let nonce = chain.state.get_nonce(&my_address);
+                            let pending_nonce_offset = mempool.get_transactions_for_block(1000)
+                                .iter()
+                                .filter(|tx| tx.sender == my_address)
+                                .count() as u64;
+                            let final_nonce = nonce + pending_nonce_offset;
+
+                            // Which consensus key is being registered. By
+                            // default the node registers its own key and
+                            // proves it holds the key, which is what a node
+                            // operator wants.
+                            let consensus_pubkey = if payload.consensus_pubkey.is_empty() {
+                                validator_keypair.public.to_bytes().to_vec()
+                            } else {
+                                payload.consensus_pubkey.clone()
+                            };
+
+                            // The proof is over the registration message. If
+                            // the caller did not supply one, the node signs it
+                            // with its own consensus key.
+                            let message = crate::transaction::Transaction::registration_message(
+                                &my_address,
+                                &consensus_pubkey,
+                                final_nonce,
+                                deposit,
+                            );
+                            let proof = if payload.proof.is_empty() {
+                                Crypto::schnorrkel_sign(&validator_keypair, &message)
+                            } else {
+                                payload.proof.clone()
+                            };
+
+                            let tx = crate::transaction::Transaction::new(
+                                my_address.clone(),
+                                consensus_pubkey.clone(),
+                                crate::transaction::TransactionData::RegisterValidator {
+                                    consensus_pubkey: consensus_pubkey.clone(),
+                                    deposit,
+                                    proof,
+                                },
+                                final_nonce,
+                                &wallet_keypair
+                            );
+
+                            let hash = hex::encode(tx.hash());
+
+                            match mempool.add_transaction(tx.clone(), &chain.state) {
+                                Ok(_) => {
+                                    network_client.broadcast_transaction(tx);
+                                    println!("✅ Registered validator {} (deposit {})", hex::encode(&consensus_pubkey), deposit);
+                                    let _ = respond_to.send(Ok(hash));
+                                }
+                                Err(e) => {
+                                    let _ = respond_to.send(Err(e));
+                                }
+                            }
                         }
                     }
                 }

@@ -132,6 +132,19 @@ start_node() {
   fi
 }
 
+reset_chain() {
+  # Wipe the chain database so the node starts from the genesis again.
+  #
+  # The validator key, the wallet key and the libp2p identity are kept: they
+  # are this node's identity, and the genesis references the keys they
+  # produced. Only the chain history is thrown away.
+  cd "$REPO_DIR"
+  echo "=== Resetting the chain database ==="
+  sudo -E $COMPOSE down 2>/dev/null || true
+  sudo rm -rf ./data/validator/nocostcoin_db_9000
+  echo "Chain database removed. The validator key, wallet key and libp2p identity were kept."
+}
+
 setup_nginx() {
   if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "YOUR_DOMAIN" ]; then
     sudo apt-get install -y nginx certbot python3-certbot-nginx
@@ -164,6 +177,13 @@ case "$MODE" in
     ensure_image
     start_node
     ;;
+  reset)
+    # Throw the chain away and start again from the genesis. Used when the
+    # genesis changes and the old chain is no longer compatible.
+    reset_chain
+    ensure_image
+    start_node
+    ;;
   setup)
     cd "$REPO_DIR"
     if [ "${RUN_TESTS:-0}" = "1" ]; then run_tests; fi
@@ -182,7 +202,7 @@ case "$MODE" in
     setup_nginx
     ;;
   *)
-    echo "Unknown MODE: $MODE (expected setup|identity|restart)"; exit 1 ;;
+    echo "Unknown MODE: $MODE (expected setup|identity|restart|reset)"; exit 1 ;;
 esac
 
 echo

@@ -128,6 +128,40 @@ impl State {
         self.pending_changes.insert(address, account);
     }
 
+    /// Mint new coins into an account.
+    ///
+    /// This is how the monthly validator reward pool is topped up. The
+    /// protocol owns the pool account, so this is the only way coins enter
+    /// circulation beyond the genesis.
+    pub fn mint(&mut self, address: &[u8], amount: u64) {
+        let mut account = self.get_account(address).unwrap_or(Account::new(0));
+        account.balance = account.balance.saturating_add(amount);
+        self.pending_changes.insert(address.to_vec(), account);
+    }
+
+    /// Pay a block reward out of the reward pool to the block's producer.
+    ///
+    /// The pool is refilled once per reward period, so it is normally funded.
+    /// If it ever runs dry the reward is skipped rather than minting on the
+    /// spot - the total supply is then bounded by what was actually minted.
+    pub fn pay_block_reward(&mut self, producer: &[u8], amount: u64) -> bool {
+        let pool = crate::pools::reward_pool_address();
+        let pool_balance = self.get_balance(&pool);
+        if pool_balance < amount {
+            return false;
+        }
+
+        let mut pool_account = self.get_account(&pool).unwrap_or(Account::new(0));
+        pool_account.balance -= amount;
+        self.pending_changes.insert(pool, pool_account);
+
+        let mut producer_account = self.get_account(producer).unwrap_or(Account::new(0));
+        producer_account.balance = producer_account.balance.saturating_add(amount);
+        self.pending_changes.insert(producer.to_vec(), producer_account);
+
+        true
+    }
+
     // Generic apply transaction
     pub fn apply_transaction(&mut self, tx: &Transaction) -> Result<(), String> {
         // 1. Check Nonce
@@ -165,18 +199,21 @@ impl State {
             TransactionData::DelegateSpend { delegate, allowance, expiry: _ } => {
                 self.delegate_spend(&tx.sender, delegate, *allowance)?;
             },
-            TransactionData::RegisterValidator { stake } => {
-                // Deduct stake from balance
+            TransactionData::RegisterValidator { deposit, .. } => {
+                // Deduct the refundable deposit from the balance. The
+                // consensus key itself is verified by the transaction's
+                // registration proof, so the state machine only has to move
+                // the deposit.
                 let mut account = self.get_account(&tx.sender).ok_or("Account not found")?;
-                if account.balance < *stake {
-                    return Err("Insufficient balance for stake".to_string());
+                if account.balance < *deposit {
+                    return Err("Insufficient balance for deposit".to_string());
                 }
-                account.balance -= stake;
+                account.balance -= deposit;
                 self.pending_changes.insert(tx.sender.clone(), account);
             },
             TransactionData::UnregisterValidator => {
-                // Refund is handled by Chain/ValidatorSet interaction since State doesn't know staked amount.
-                // Here we just validate account existence
+                // The refund is handled by Chain, which knows the deposit.
+                // Here we just validate account existence.
                 if self.get_account(&tx.sender).is_none() {
                     return Err("Account not found".to_string());
                 }

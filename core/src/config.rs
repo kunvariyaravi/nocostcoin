@@ -18,26 +18,47 @@ pub struct NetworkConfig {
     pub listen_addr: String,
 }
 
+/// A founding validator declared in the genesis.
+///
+/// The consensus key is the identity that signs blocks. The reward address is
+/// the Ed25519 account that receives this validator's block rewards.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct GenesisValidator {
+    /// Hex-encoded 32-byte Schnorrkel consensus key.
+    pub consensus_pubkey: String,
+    /// Hex-encoded 32-byte Ed25519 address that receives block rewards.
+    pub reward_address: String,
+}
+
+/// An account funded at genesis.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct GenesisAccount {
+    /// Hex-encoded 32-byte Ed25519 address.
+    pub address: String,
+    /// Balance in NCC.
+    pub amount: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct GenesisConfig {
     pub chain_id: u64,
     pub genesis_time: i64,
     pub genesis_seed: String,
-    /// Hex-encoded 32-byte Schnorrkel public keys of the founding validators.
-    /// These are public keys only - the matching secret keys never appear in
-    /// the genesis file, so the genesis can be committed to a public repo.
+    /// The founding validators. These are public keys only - the matching
+    /// secret keys never appear in the genesis file, so the genesis can be
+    /// committed to a public repo.
     #[serde(default)]
-    pub initial_validators: Vec<String>,
+    pub initial_validators: Vec<GenesisValidator>,
     /// Testnet/devnet only: seeds from which validator keys are derived.
     /// A validator listed here MUST also set `mining.validator_seed` to the
     /// same string, otherwise its key will not match the genesis entry.
     #[serde(default)]
     pub initial_validator_seeds: Vec<String>,
-    /// Hex-encoded 32-byte Ed25519 addresses that receive a genesis balance.
-    /// Funding must be declared here (not derived per node) so that every
-    /// node computes an identical genesis state.
+    /// Accounts funded at genesis. Funding has to live in the genesis file
+    /// (not derived per node) so that every node computes an identical
+    /// genesis state.
     #[serde(default)]
-    pub initial_funded_accounts: Vec<String>,
+    pub initial_funded_accounts: Vec<GenesisAccount>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -54,20 +75,31 @@ impl GenesisConfig {
     /// Not called on the ceremony path, which legitimately runs before the
     /// real keys are known.
     pub fn validate(&self) -> Result<(), String> {
-        for (label, entries) in [
-            ("initial_validators", &self.initial_validators),
-            ("initial_funded_accounts", &self.initial_funded_accounts),
-        ] {
-            for entry in entries {
+        for validator in &self.initial_validators {
+            for (label, entry) in [
+                ("consensus_pubkey", &validator.consensus_pubkey),
+                ("reward_address", &validator.reward_address),
+            ] {
                 if entry.len() != 64 || !entry.chars().all(|c| c.is_ascii_hexdigit()) {
                     return Err(format!(
-                        "genesis.{label} entry '{}' is not a 64-character hex key - run the \
+                        "genesis.initial_validators[].{} entry '{}' is not a 64-character hex key - run the \
                          genesis ceremony (nocostcoin --identity) and paste the real values in",
-                        entry
+                        label, entry
                     ));
                 }
             }
         }
+
+        for account in &self.initial_funded_accounts {
+            if account.address.len() != 64 || !account.address.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(format!(
+                    "genesis.initial_funded_accounts[].address entry '{}' is not a 64-character hex key - run the \
+                     genesis ceremony (nocostcoin --identity) and paste the real values in",
+                    account.address
+                ));
+            }
+        }
+
         Ok(())
     }
 }
@@ -184,7 +216,10 @@ mod tests {
         // A genesis that was never finalised must be rejected, with an error
         // that tells the operator what to do.
         let mut placeholder = mainnet.genesis.clone();
-        placeholder.initial_validators = vec!["REPLACE_WITH_VALIDATOR_PUBKEY_64_HEX".to_string()];
+        placeholder.initial_validators = vec![GenesisValidator {
+            consensus_pubkey: "REPLACE_WITH_VALIDATOR_PUBKEY_64_HEX".to_string(),
+            reward_address: "REPLACE_WITH_VALIDATOR_PUBKEY_64_HEX".to_string(),
+        }];
         let err = placeholder.validate().unwrap_err();
         assert!(err.contains("ceremony"), "error should say what to do: {}", err);
 
@@ -196,11 +231,17 @@ mod tests {
         );
 
         let mut not_hex = mainnet.genesis.clone();
-        not_hex.initial_validators = vec!["zz".repeat(32)];
+        not_hex.initial_validators = vec![GenesisValidator {
+            consensus_pubkey: "zz".repeat(32),
+            reward_address: "ab".repeat(32),
+        }];
         assert!(not_hex.validate().is_err());
 
         let mut wrong_len = mainnet.genesis.clone();
-        wrong_len.initial_funded_accounts = vec!["ab".repeat(31)];
+        wrong_len.initial_funded_accounts = vec![GenesisAccount {
+            address: "ab".repeat(31),
+            amount: 100,
+        }];
         assert!(wrong_len.validate().is_err());
     }
 

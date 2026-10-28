@@ -4,23 +4,28 @@
 #       nocostcoin --identity --config config/mainnet-gcp.toml
 #    It creates the validator key locally and prints:
 #       VALIDATOR_PUBKEY=<64 hex>   (consensus key - goes in initial_validators)
-#       WALLET_ADDRESS=<64 hex>     (wallet key  - goes in initial_funded_accounts)
+#       WALLET_ADDRESS=<64 hex>     (wallet key  - goes in reward_address)
 #    The secret keys stay on that machine. Never copy them anywhere.
-# 2. Collect the 3 validator pubkeys + wallet addresses and paste them below.
+# 2. Collect the validator pubkeys + wallet addresses and paste them below.
 # 3. Copy this [genesis] block IDENTICALLY into mainnet.toml, mainnet2.toml,
 #    mainnet3.toml and mainnet-gcp.toml. One byte of difference = permanent fork.
 # 4. NEVER edit after launch.
 #
 # initial_validators holds PUBLIC keys only, so this file is safe to commit.
 # The node refuses to start while the placeholders are in place.
+#
+# Tokenomics:
+#   - 10,000,000 NCC faucet float, paid out 100 NCC per address, once ever.
+#   - 1,296,000 NCC reward pool, refilled with the same amount every 720
+#     epochs (30 days) and paid out 1 NCC per block produced.
 
 [genesis]
 chain_id = 1
-genesis_time = 1793120271511
-genesis_seed = "3798dd950fe5753bf705c540701345e4b8910f09f34f73878e00751bb7a5da9e"
+genesis_time = 1793189693893
+genesis_seed = "1c402fa0c7b5a0b1d522c8edc08fb7072515320f75d802e6521b6b3c5fccf1b7"
 initial_validators = [
-    "128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c",
+    { consensus_pubkey = "128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c", reward_address = "dd5b099c02335b7e4f3d6f5e36ea85f9d02117318d52ce7e1fa3cb54dfc2ebeb" },
 ]
 initial_funded_accounts = [
-    "dd5b099c02335b7e4f3d6f5e36ea85f9d02117318d52ce7e1fa3cb54dfc2ebeb",
+    { address = "dd5b099c02335b7e4f3d6f5e36ea85f9d02117318d52ce7e1fa3cb54dfc2ebeb", amount = 10000000 },
 ]

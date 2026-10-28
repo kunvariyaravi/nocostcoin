@@ -22,7 +22,7 @@ pub enum ApiCommand {
     GetAddressHistory(String, usize, oneshot::Sender<Vec<TransactionResponse>>),
     GetValidators(oneshot::Sender<Vec<ValidatorStatusResponse>>),
     GetValidatorStatus(Option<String>, oneshot::Sender<Option<ValidatorStatusResponse>>),
-    RegisterValidator(u64, oneshot::Sender<Result<String, String>>),
+    RegisterValidator(crate::transaction::RegisterValidatorPayload, oneshot::Sender<Result<String, String>>),
     GetConsensusState(oneshot::Sender<ConsensusStateResponse>),
     Faucet(FaucetRequest, oneshot::Sender<Result<FaucetResponse, String>>),
 }
@@ -51,7 +51,9 @@ pub struct GetBlocksQuery {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ValidatorStatusResponse {
     pub pubkey: String,
-    pub stake: u64,
+    /// The refundable deposit the validator holds. This is not stake and it
+    /// does not affect how many slots a validator wins.
+    pub deposit: u64,
     pub is_active: bool,
     pub last_voted_slot: u64, // Placeholder, implementation might vary
 }
@@ -82,7 +84,13 @@ pub struct FaucetRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RegisterValidatorRequest {
-    pub stake: u64,
+    /// Hex-encoded 32-byte Schnorrkel consensus key.
+    pub consensus_pubkey: String,
+    /// Refundable deposit in NCC.
+    pub deposit: u64,
+    /// Hex-encoded Schnorrkel signature by the consensus key, proving the
+    /// sender holds it.
+    pub proof: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -292,11 +300,12 @@ pub fn start_api_server(
         .and_then(handle_get_consensus_state);
 
     // POST /validator/register
+    // Anyone may register as a validator, so this endpoint is open. The
+    // registration carries a proof that the caller holds the consensus key.
     let register_validator_route = warp::path!("validator" / "register")
         .and(warp::post())
         .and(warp::body::content_length_limit(MAX_SMALL_BODY))
         .and(warp::body::json())
-        .and(auth_filter(&config))
         .and(cmd_tx_filter.clone())
         .and_then(handle_register_validator);
 
@@ -779,16 +788,55 @@ async fn handle_get_validators(
 
 async fn handle_register_validator(
     request: RegisterValidatorRequest,
-    authorized: bool,
     cmd_tx: mpsc::UnboundedSender<ApiCommand>
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    if !authorized {
-        return Ok(unauthorized());
-    }
+    // Anyone may register as a validator, so this endpoint is open. The
+    // registration carries a proof that the caller holds the consensus key,
+    // and the deposit is paid from the node's own balance.
+    //
+    // Leaving the consensus key and proof empty means "register this node":
+    // the node signs the proof with its own consensus key, which is what a
+    // node operator wants.
+    let consensus_pubkey = match hex::decode(&request.consensus_pubkey) {
+        Ok(bytes) if bytes.len() == 32 => bytes,
+        Ok(_) if request.consensus_pubkey.is_empty() => Vec::new(),
+        Ok(_) => {
+            return Ok(warp::reply::with_status(
+                warp::reply::json(&"Consensus pubkey must be 32 bytes (64 hex characters)"),
+                warp::http::StatusCode::BAD_REQUEST,
+            ));
+        }
+        Err(_) if request.consensus_pubkey.is_empty() => Vec::new(),
+        Err(_) => {
+            return Ok(warp::reply::with_status(
+                warp::reply::json(&"Consensus pubkey must be valid hex"),
+                warp::http::StatusCode::BAD_REQUEST,
+            ));
+        }
+    };
+
+    let proof = match hex::decode(&request.proof) {
+        Ok(bytes) => bytes,
+        Err(_) if request.proof.is_empty() => Vec::new(),
+        Err(_) => {
+            return Ok(warp::reply::with_status(
+                warp::reply::json(&"Proof must be valid hex"),
+                warp::http::StatusCode::BAD_REQUEST,
+            ));
+        }
+    };
+
+    let payload = crate::transaction::RegisterValidatorPayload {
+        consensus_pubkey,
+        deposit: request.deposit,
+        proof,
+        signature: vec![],
+        nonce: 0,
+    };
 
     let (tx, rx) = oneshot::channel();
-    
-    if cmd_tx.send(ApiCommand::RegisterValidator(request.stake, tx)).is_err() {
+
+    if cmd_tx.send(ApiCommand::RegisterValidator(payload, tx)).is_err() {
          return Ok(warp::reply::with_status(
             warp::reply::json(&"Internal Server Error"),
             warp::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -800,11 +848,11 @@ async fn handle_register_validator(
             warp::reply::json(&tx_hash),
             warp::http::StatusCode::OK,
         )),
-        Ok(Err(e)) => Ok(warp::reply::with_status(
+         Ok(Err(e)) => Ok(warp::reply::with_status(
             warp::reply::json(&e),
             warp::http::StatusCode::BAD_REQUEST,
         )),
-        Err(_) => Ok(warp::reply::with_status(
+         Err(_) => Ok(warp::reply::with_status(
             warp::reply::json(&"Request timed out"),
             warp::http::StatusCode::REQUEST_TIMEOUT,
         )),

@@ -38,28 +38,31 @@ Most blockchain transactions are simple value transfers or asset operations. Noc
 
 ### 3.1 Consensus: Proof of Determinism (PoD)
 
-#### 3.1.1 Secret Leader Selection
+#### 3.1.1 Deterministic Leader Schedule
 
-Validators produce a VRF signature: `VRF(SK, epoch_seed)` to prove block production rights for a slot without revealing their identity beforehand. This prevents targeted DDoS attacks.
+Validators produce a VRF signature over the parent block's VRF output and the slot number, and include the proof in the block header. The VRF proof is what proves the producer holds the consensus key it claims. Other nodes verify the proof and check the producer against the schedule.
 
 **Process:**
-1. Validator computes VRF output for their slot
-2. If `hash(VRF_output) < threshold * stake_weight`, they can produce a block
-3. They include the VRF proof in the block header
-4. Other nodes verify the proof deterministically
+1. The schedule names one validator for the slot
+2. That validator computes the VRF output for the slot
+3. It includes the VRF proof in the block header
+4. Other nodes verify the proof and the schedule deterministically
 
-#### 3.1.2 Stake-Weighted Thresholds
+#### 3.1.2 Equal Slots Per Validator
+
+The schedule is round-robin over the validators active in the epoch:
 
 ```rust
-threshold = base_threshold * (validator_stake / total_stake)
-can_produce = vrf_hash < threshold
+leader = active_validators[slot % active_validators.len()]
 ```
 
-Minimum stake: 0.1% of total network stake. This prevents Sybil attacks while allowing reasonable decentralization.
+Every active validator therefore produces an equal share of the slots. There is no stake weighting: holding more coins buys no additional blocks. A validator joins by locking a refundable 100 NCC deposit, which is an anti-Sybil measure rather than a claim on the schedule, and it is forfeited only by a validator that signs two different blocks for the same slot.
 
-#### 3.1.3 Fallback Mechanism
+A registration takes effect in the epoch after the one it was included in, so the active set cannot change while an epoch is running and old blocks always re-validate against the same set.
 
-If the primary leader (slot % N) doesn't produce a block within 1 second, backup validators can step in. This ensures liveness even if nodes go offline.
+#### 3.1.3 Missed Slots
+
+If the scheduled leader misses a slot, the chain continues at the next slot. A missed slot leaves a gap in the block index; it does not stall the chain.
 
 #### 3.1.4 Chained Randomness
 
@@ -80,7 +83,6 @@ Account state uses a **Merkle Patricia Trie** (MPT) for:
 pub struct Account {
     balance: u64,
     nonce: u64,
-    stake: u64,
     // Asset balances stored as HashMap<AssetId, u64>
     // No separate storage for each token contract
 }
@@ -205,13 +207,12 @@ The protocol enforces the limit. If the agent is compromised, you only lose 100 
 ### 5.1 Implemented Protections
 
 ✅ **VRF Grinding Prevention**: Chained randomness makes pre-computing advantageous slots impossible  
-✅ **Equivocation Slashing**: Validators lose stake for signing multiple blocks at the same slot  
-✅ **Arithmetic Safety (L1 Guard)**: `checked_*` arithmetic on all balance and asset state transitions prevents integer overflow/underflow exploits  
-✅ **Cross-Network Replay Protection**: Mandatory `chain_id` binding in transaction signatures ensures network isolation (e.g., Testnet vs. Mainnet)  
-✅ **Mempool Rate Limiting**: Per-address pending transaction quotas (max 10) and sequential nonce enforcement prevents "Dust Spam"  
+✅ **Equivocation Slashing**: A validator that signs two different blocks for the same slot is slashed and loses its 100 NCC deposit  
+✅ **Validator Deposit**: Joining the validator set costs a refundable 100 NCC deposit, so flooding the schedule with throwaway keys is not free  
+✅ **Registration Proof**: A validator registration carries a Schnorrkel signature by the consensus key, so nobody can register a key they do not hold  
 ✅ **Merkle Proofs**: All state transitions include Merkle root validation  
 ✅ **Atomic Updates**: Failed transactions roll back state changes  
-✅ **Faucet Cooldown**: 24-hour rate limiting on faucet claims prevents economic exhaustion
+✅ **Faucet One-Time Claims**: Each address can claim from the faucet once, ever, which bounds the outflow
 
 ### 5.2 Attack Vectors & Mitigations
 
@@ -223,7 +224,7 @@ The protocol enforces the limit. If the agent is compromised, you only lose 100 
 ### 5.3 Security Rating: 90/100
 
 **Safe for Testnet**: ✅ Yes  
-**Staking Enabled**: ✅ Yes
+**Permissionless Validators**: ✅ Yes
 **Production Ready**: ✅ Yes (Mainnet Launched)
 
 **Remaining for Mainnet:**
@@ -267,15 +268,19 @@ Future improvements:
 
 ### 7.1 Token Supply
 
-- **Initial Supply**: Defined per network (Testnet: 1M per node)
-- **Inflation**: None planned
-- **Transaction Fees**: Planned for mainnet (burned or distributed to validators)
+- **Genesis Supply**: 11,296,000 NCC
+  - 10,000,000 NCC faucet float, paid out as 100 NCC per address
+  - 1,296,000 NCC reward pool, one reward period's worth
+- **Inflation**: 1,296,000 NCC minted every 720 epochs (30 days) into the reward pool
+- **Transaction Fees**: None. The chain is zero-fee by design.
+- **Block Reward**: 1 NCC to the producer of each block, paid out of the reward pool
 
-### 7.2 Staking
+### 7.2 Validator Deposits
 
-- **Minimum Stake**: 0.1% of total network stake
-- **Slashing**: 100% of stake for equivocation
-- **Rewards**: Block production rights (future: fees)
+- **Minimum Deposit**: 100 NCC, refundable on exit
+- **Forfeiture**: 100% of the deposit for equivocation
+- **Block Reward**: 1 NCC per block produced
+- **Slot Share**: Equal - 1/N of the slots for N active validators
 
 ---
 

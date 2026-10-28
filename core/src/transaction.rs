@@ -51,7 +51,14 @@ pub enum TransactionData {
         expiry: u64, // Epoch or slot
     },
     RegisterValidator {
-        stake: u64,
+        /// The 32-byte Schnorrkel consensus key that will sign blocks.
+        consensus_pubkey: Vec<u8>,
+        /// Refundable deposit, in NCC.
+        deposit: u64,
+        /// Schnorrkel signature by `consensus_pubkey` over the registration
+        /// message. It proves the sender actually holds the consensus key, so
+        /// nobody can register a key they do not control.
+        proof: Vec<u8>,
     },
     UnregisterValidator,
 }
@@ -63,6 +70,20 @@ pub struct Transaction {
     pub nonce: u64,
     pub data: TransactionData,
     pub signature: Vec<u8>,
+}
+
+/// A validator registration, as submitted over the API.
+///
+/// The signature is the one the node has to sign the registration transaction
+/// with; the proof is the Schnorrkel signature by the consensus key.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RegisterValidatorPayload {
+    pub consensus_pubkey: Vec<u8>,
+    pub deposit: u64,
+    pub proof: Vec<u8>,
+    /// Ed25519 signature by the node's wallet.
+    pub signature: Vec<u8>,
+    pub nonce: u64,
 }
 
 impl Transaction {
@@ -152,9 +173,11 @@ impl Transaction {
                 hasher.update(allowance.to_le_bytes());
                 hasher.update(expiry.to_le_bytes());
             },
-            TransactionData::RegisterValidator { stake } => {
+            TransactionData::RegisterValidator { consensus_pubkey, deposit, proof } => {
                 hasher.update(b"RegisterValidator");
-                hasher.update(stake.to_le_bytes());
+                hasher.update(consensus_pubkey);
+                hasher.update(deposit.to_le_bytes());
+                hasher.update(proof);
             },
             TransactionData::UnregisterValidator => {
                 hasher.update(b"UnregisterValidator");
@@ -162,6 +185,26 @@ impl Transaction {
 
         }
 
+        hasher.finalize().to_vec()
+    }
+
+    /// The message a validator signs to prove it holds the consensus key it is
+    /// registering.
+    ///
+    /// It is bound to the sender, the key, the nonce and the deposit, so a
+    /// proof cannot be lifted from one registration and replayed on another.
+    pub fn registration_message(
+        sender: &[u8],
+        consensus_pubkey: &[u8],
+        nonce: u64,
+        deposit: u64,
+    ) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        hasher.update(b"nocostcoin-register-validator");
+        hasher.update(sender);
+        hasher.update(consensus_pubkey);
+        hasher.update(nonce.to_le_bytes());
+        hasher.update(deposit.to_le_bytes());
         hasher.finalize().to_vec()
     }
 
@@ -304,10 +347,34 @@ impl Transaction {
                     return Err("Allowance must be > 0".to_string());
                 }
             },
-            TransactionData::RegisterValidator { stake } => {
-                 if *stake == 0 {
-                     return Err("Stake must be > 0".to_string());
-                 }
+            TransactionData::RegisterValidator { consensus_pubkey, deposit, proof } => {
+                if consensus_pubkey.len() != 32 {
+                    return Err(format!(
+                        "Consensus pubkey must be 32 bytes, got {}",
+                        consensus_pubkey.len()
+                    ));
+                }
+                if *deposit < crate::validator::VALIDATOR_DEPOSIT {
+                    return Err(format!(
+                        "Deposit must be at least {} NCC",
+                        crate::validator::VALIDATOR_DEPOSIT
+                    ));
+                }
+                if proof.is_empty() {
+                    return Err("Registration proof is required".to_string());
+                }
+                // The proof must be by the consensus key itself, otherwise
+                // anyone could register a key they do not control and hijack
+                // that validator's turn in the round-robin schedule.
+                let message = Self::registration_message(
+                    &self.sender,
+                    consensus_pubkey,
+                    self.nonce,
+                    *deposit,
+                );
+                if !crate::crypto::Crypto::schnorrkel_verify(consensus_pubkey, &message, proof) {
+                    return Err("Invalid registration proof for the consensus key".to_string());
+                }
             },
             TransactionData::UnregisterValidator => {},
 

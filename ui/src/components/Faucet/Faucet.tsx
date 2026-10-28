@@ -69,9 +69,7 @@ export default function Faucet() {
                 message: `Success! You received ${response.amount} NCC tokens. TX: ${response.tx_hash.substring(0, 16)}...`
             });
 
-            const now = Date.now();
-            const cooldown = response.next_claim_time - now;
-            if (cooldown > 0) setCooldownRemaining(cooldown);
+            // There is no cooldown: an address can claim only once, ever.
         } catch (err: any) {
             setStatus({ type: 'error', message: err.message });
         } finally {
@@ -130,7 +128,7 @@ export default function Faucet() {
                         ) : cooldownRemaining ? (
                             `⏳ Cooldown: ${formatCooldown(cooldownRemaining)}`
                         ) : (
-                            '💰 Get 1000 NCC'
+                            '💰 Get 100 NCC'
                         )}
                     </button>
                 )}
@@ -146,7 +144,7 @@ export default function Faucet() {
                 )}
 
                 <div className="text-sm text-gray-500">
-                    ℹ️ You can request tokens once every 24 hours
+                    ℹ️ Each address can claim 100 NCC once
                 </div>
             </div>
 

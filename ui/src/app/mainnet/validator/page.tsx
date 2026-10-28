@@ -12,7 +12,8 @@ import { useWallet } from '@/contexts/WalletContext';
 
 interface ValidatorInfo {
     pubkey: string;
-    stake: number;
+    /** The refundable deposit. This is not stake and it buys no extra slots. */
+    deposit: number;
     is_active: boolean;
     last_voted_slot: number;
 }
@@ -26,6 +27,9 @@ interface NodeStats {
     validator_pubkey: string;
 }
 
+/** The refundable deposit a validator locks to join the set. */
+const VALIDATOR_DEPOSIT = 100;
+
 function truncate(hex: string, head = 16, tail = 12): string {
     if (!hex) return '-';
     if (hex.length <= head + tail + 3) return hex;
@@ -38,6 +42,8 @@ export default function ValidatorPage() {
     const [stats, setStats] = useState<NodeStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [registering, setRegistering] = useState(false);
+    const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     // A validator's identity is its Schnorrkel consensus key - the key the
     // node signs blocks with. An Ed25519 browser wallet is a transaction
@@ -70,10 +76,40 @@ export default function ValidatorPage() {
         return () => clearInterval(interval);
     }, []);
 
-    const totalStake = validators.reduce((sum, v) => sum + v.stake, 0);
+    const activeCount = validators.filter((v) => v.is_active).length;
+    // Every active validator gets an equal share of the slots. There is no
+    // stake weighting, so holding more coins buys nothing.
+    const equalShare = activeCount > 0 ? 100 / activeCount : 0;
     const thisNode = stats
         ? validators.find((v) => v.pubkey === stats.validator_pubkey) ?? null
         : null;
+
+    const handleRegister = async () => {
+        setRegistering(true);
+        setMsg(null);
+        try {
+            const res = await fetch('/api/node/validator/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deposit: VALIDATOR_DEPOSIT })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(typeof data === 'string' ? data : (data?.error || 'Registration failed'));
+            }
+
+            setMsg({
+                type: 'success',
+                text: `Registration submitted. Your validator joins the schedule next epoch. TX: ${String(data).substring(0, 16)}...`
+            });
+            fetchData();
+        } catch (e: any) {
+            setMsg({ type: 'error', text: e.message || 'Registration failed' });
+        } finally {
+            setRegistering(false);
+        }
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -94,16 +130,16 @@ export default function ValidatorPage() {
                     </div>
                     <p className="text-slate-500 text-sm">Validators</p>
                     <h3 className="text-2xl font-bold text-white mt-1">
-                        {loading ? '-' : validators.length}
+                        {loading ? '-' : activeCount}
                     </h3>
                 </div>
                 <div className="card border-slate-700/50 bg-slate-800/30">
                     <div className="bg-emerald-500/10 w-12 h-12 rounded-lg flex items-center justify-center mb-4 text-emerald-400">
                         <ShieldCheckIcon className="w-6 h-6" />
                     </div>
-                    <p className="text-slate-500 text-sm">Total Stake</p>
+                    <p className="text-slate-500 text-sm">Slots per validator</p>
                     <h3 className="text-2xl font-bold text-white mt-1">
-                        {totalStake.toLocaleString()} NCC
+                        {equalShare.toFixed(2)}%
                     </h3>
                 </div>
                 <div className="card border-slate-700/50 bg-slate-800/30">
@@ -136,7 +172,6 @@ export default function ValidatorPage() {
                 ) : (
                     <div className="space-y-4">
                         {validators.map((v) => {
-                            const probability = totalStake > 0 ? (v.stake / totalStake) * 100 : 0;
                             const isThisNode = stats?.validator_pubkey === v.pubkey;
                             return (
                                 <div
@@ -162,15 +197,15 @@ export default function ValidatorPage() {
                                             </code>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <p className="text-sm text-slate-500">Stake</p>
+                                            <p className="text-sm text-slate-500">Deposit</p>
                                             <p className="text-lg font-bold text-white">
-                                                {v.stake.toLocaleString()} NCC
+                                                {v.deposit.toLocaleString()} NCC
                                             </p>
                                         </div>
                                         <div className="text-right shrink-0">
                                             <p className="text-sm text-slate-500">Leader odds</p>
                                             <p className="text-lg font-bold text-cyan-400">
-                                                {probability.toFixed(2)}%
+                                                {v.is_active ? `${equalShare.toFixed(2)}%` : '0%'}
                                             </p>
                                         </div>
                                         <div className="text-right shrink-0">
@@ -214,17 +249,15 @@ export default function ValidatorPage() {
                             </p>
                         </div>
                         <div className="bg-slate-800/50 p-3 rounded-lg">
-                            <p className="text-slate-500">Validator stake</p>
+                            <p className="text-slate-500">Validator deposit</p>
                             <p className="font-bold text-white mt-1">
-                                {thisNode ? `${thisNode.stake.toLocaleString()} NCC` : 'Not a validator'}
+                                {thisNode ? `${thisNode.deposit.toLocaleString()} NCC` : 'Not a validator'}
                             </p>
                         </div>
                         <div className="bg-slate-800/50 p-3 rounded-lg">
                             <p className="text-slate-500">Leader odds</p>
                             <p className="font-bold text-white mt-1">
-                                {thisNode && totalStake > 0
-                                    ? `${((thisNode.stake / totalStake) * 100).toFixed(2)}%`
-                                    : '0%'}
+                                {thisNode && thisNode.is_active ? `${equalShare.toFixed(2)}%` : '0%'}
                             </p>
                         </div>
                     </div>
@@ -248,17 +281,33 @@ export default function ValidatorPage() {
             <div className="card border-blue-500/20 bg-blue-500/5">
                 <p className="font-bold text-blue-300 mb-1">Want to be a validator?</p>
                 <p className="text-sm text-slate-400 mb-4">
-                    Validators run a node and hold a Schnorrkel consensus key. A
-                    browser wallet is an Ed25519 key for spending coins and cannot
-                    be a validator on its own, and staking a validator from the
-                    browser is not available yet.
+                    Anyone can join. A validator locks a refundable {VALIDATOR_DEPOSIT} NCC
+                    deposit and then takes an equal share of the slots - there is no
+                    stake, so holding more coins buys no extra blocks. The registration
+                    below registers this node&apos;s own consensus key.
                 </p>
-                <Link
-                    href="/documentation/how-to-run-node"
-                    className="btn-primary inline-block"
-                >
-                    Read the Node Setup Guide
-                </Link>
+
+                {msg && (
+                    <div className={`p-3 rounded-lg text-sm border mb-4 ${msg.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        {msg.text}
+                    </div>
+                )}
+
+                <div className="flex flex-wrap gap-3 items-center">
+                    <button
+                        onClick={handleRegister}
+                        disabled={registering}
+                        className="btn-primary"
+                    >
+                        {registering ? 'Registering...' : `Register This Node (${VALIDATOR_DEPOSIT} NCC)`}
+                    </button>
+                    <Link
+                        href="/documentation/how-to-run-node"
+                        className="text-sm text-blue-300 hover:text-blue-200"
+                    >
+                        Read the Node Setup Guide
+                    </Link>
+                </div>
             </div>
         </div>
     );

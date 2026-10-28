@@ -102,6 +102,58 @@ impl Storage {
         }
     }
 
+    /// Whether the genesis funding has already been applied.
+    ///
+    /// The genesis setup runs on every start, but it must only take effect
+    /// once. Without this marker a restart would re-fund the genesis
+    /// accounts, and a drained account would be topped up again for free.
+    pub fn genesis_applied(&self) -> bool {
+        self.db
+            .get(b"genesis_applied")
+            .map(|v| v.is_some())
+            .unwrap_or(false)
+    }
+
+    /// Record that the genesis funding has been applied.
+    pub fn mark_genesis_applied(&self) -> Result<(), String> {
+        self.db
+            .put(b"genesis_applied", b"1")
+            .map_err(|e| format!("Failed to mark genesis applied: {}", e))?;
+        Ok(())
+    }
+
+    /// Store the validator set.
+    ///
+    /// The round-robin schedule depends on the exact membership and order of
+    /// the set, so it has to survive a restart. Without this, a restart would
+    /// silently change who produces which block and fork the chain.
+    pub fn store_validators(&self, validators: &[crate::validator::ValidatorInfo]) -> Result<(), String> {
+        let value = bincode::serialize(validators)
+            .map_err(|e| format!("Failed to serialize validators: {}", e))?;
+
+        self.db
+            .put(b"validators", value)
+            .map_err(|e| format!("Failed to store validators: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Retrieve the validator set.
+    pub fn get_validators(&self) -> Result<Option<Vec<crate::validator::ValidatorInfo>>, String> {
+        let value = self.db
+            .get(b"validators")
+            .map_err(|e| format!("Failed to get validators: {}", e))?;
+
+        match value {
+            Some(bytes) => {
+                let validators = bincode::deserialize(&bytes)
+                    .map_err(|e| format!("Failed to deserialize validators: {}", e))?;
+                Ok(Some(validators))
+            }
+            None => Ok(None),
+        }
+    }
+
     /// Store account state
     pub fn store_account(&self, address: &[u8], account: &Account) -> Result<(), String> {
         let key = [b"account:", address].concat();
@@ -304,31 +356,22 @@ impl Storage {
         }
     }
     
-    /// Check if an address can claim from the faucet (24-hour cooldown)
+    /// Check if an address can claim from the faucet.
+    ///
+    /// An address can claim once, ever. There is no cooldown to wait out - a
+    /// second claim is refused outright.
     pub fn can_claim(&self, address: &[u8], current_time: i64) -> Result<bool, String> {
         match self.get_last_claim(address)? {
-            Some(last_claim) => {
-                const COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-                Ok(current_time - last_claim >= COOLDOWN_MS)
-            }
-            None => Ok(true), // Never claimed before
+            Some(_) => Ok(false),
+            None => Ok(true),
         }
     }
     
-    /// Get time remaining until next claim (in milliseconds)
+    /// Time remaining until the address may claim again.
+    ///
+    /// Always `None`: the claim is one-time, so there is never a wait.
     pub fn get_claim_cooldown_remaining(&self, address: &[u8], current_time: i64) -> Result<Option<i64>, String> {
-        match self.get_last_claim(address)? {
-            Some(last_claim) => {
-                const COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000;
-                let elapsed = current_time - last_claim;
-                if elapsed < COOLDOWN_MS {
-                    Ok(Some(COOLDOWN_MS - elapsed))
-                } else {
-                    Ok(None)
-                }
-            }
-            None => Ok(None),
-        }
+        Ok(None)
     }
 
     /// Store transaction index: tx_hash -> block_hash
@@ -506,52 +549,59 @@ mod tests {
         assert_eq!(last_claim, Some(timestamp));
     }
 
+    /// An address may claim exactly once. There is no cooldown to wait out.
     #[test]
-    fn test_faucet_rate_limiting() {
+    fn test_faucet_is_one_time_only() {
         let temp_dir = TempDir::new().unwrap();
         let storage = Storage::new(temp_dir.path()).unwrap();
-        
+
         let address = vec![5, 6, 7, 8];
         let first_claim_time = 1000000;
-        
+
         // First claim should be allowed
         assert!(storage.can_claim(&address, first_claim_time).unwrap());
-        
+
         // Record the claim
         storage.record_faucet_claim(&address, first_claim_time).unwrap();
-        
-        // Immediate second claim should be denied
+
+        // A second claim is denied, immediately and forever
         assert!(!storage.can_claim(&address, first_claim_time + 1000).unwrap());
-        
-        // Claim after 24 hours should be allowed
+
         const DAY_MS: i64 = 24 * 60 * 60 * 1000;
-        assert!(storage.can_claim(&address, first_claim_time + DAY_MS).unwrap());
+        assert!(!storage.can_claim(&address, first_claim_time + DAY_MS).unwrap());
+        assert!(!storage.can_claim(&address, first_claim_time + 365 * DAY_MS).unwrap());
     }
 
+    /// One address claiming must not lock out a different address.
+    #[test]
+    fn test_faucet_claims_are_per_address() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = Storage::new(temp_dir.path()).unwrap();
+
+        let first = vec![1, 1, 1, 1];
+        let second = vec![2, 2, 2, 2];
+
+        assert!(storage.can_claim(&first, 1000).unwrap());
+        storage.record_faucet_claim(&first, 1000).unwrap();
+
+        assert!(!storage.can_claim(&first, 1000).unwrap());
+        assert!(storage.can_claim(&second, 1000).unwrap());
+    }
+
+    /// There is never a wait, so the remaining time is always zero.
     #[test]
     fn test_faucet_cooldown_remaining() {
         let temp_dir = TempDir::new().unwrap();
         let storage = Storage::new(temp_dir.path()).unwrap();
-        
+
         let address = vec![9, 10, 11, 12];
         let claim_time = 1000000;
-        
-        // No claim yet
+
         assert_eq!(storage.get_claim_cooldown_remaining(&address, claim_time).unwrap(), None);
-        
-        // Record claim
+
         storage.record_faucet_claim(&address, claim_time).unwrap();
-        
-        // Check cooldown 1 hour later
-        const HOUR_MS: i64 = 60 * 60 * 1000;
-        let one_hour_later = claim_time + HOUR_MS;
-        let remaining = storage.get_claim_cooldown_remaining(&address, one_hour_later).unwrap();
-        assert!(remaining.is_some());
-        assert_eq!(remaining.unwrap(), 23 * HOUR_MS); // 23 hours remaining
-        
-        // Check after 24 hours
+
         const DAY_MS: i64 = 24 * 60 * 60 * 1000;
-        let after_cooldown = claim_time + DAY_MS;
-        assert_eq!(storage.get_claim_cooldown_remaining(&address, after_cooldown).unwrap(), None);
+        assert_eq!(storage.get_claim_cooldown_remaining(&address, claim_time + DAY_MS).unwrap(), None);
     }
 }

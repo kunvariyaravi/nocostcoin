@@ -8,10 +8,11 @@ export async function POST(request: Request) {
         const backendUrl = NODE_API_URL;
         const body = await request.json();
 
-        // Validate request body
-        if (!body.stake) {
+        // Validate request body. The consensus key and proof are optional:
+        // when they are omitted the node registers its own key.
+        if (!body.deposit) {
             return NextResponse.json(
-                { error: 'Missing stake amount' },
+                { error: 'Missing deposit amount' },
                 { status: 400 }
             );
         }

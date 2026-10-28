@@ -100,16 +100,23 @@ The node exposes a health endpoint:
 curl -s http://127.0.0.1:8000/health
 ```
 
-## 5. Staking
+## 5. Validator Registration
 
-> **Stake-based registration is not available yet.** `/validator/register`
-> returns an error: leader election matches the validator's Schnorrkel consensus
-> key, but the registration transaction can only prove control of the Ed25519
-> wallet. Validators must be listed in the genesis `initial_validators` list.
-> See `LAUNCH.md`.
+> **Anyone can register.** There is no stake and no allowlist. A validator locks a
+> refundable **100 NCC deposit** and then takes an equal share of the slots. The
+> deposit is an anti-Sybil measure, not a claim on the schedule.
 
-1.  **Get Tokens**: Use the [Testnet Faucet](https://faucet.nocostcoin.org).
-2.  **Register**: not supported yet - see the note above.
+1.  **Get Tokens**: Use the [Testnet Faucet](https://faucet.nocostcoin.org). You need at least 100 NCC in the node's wallet.
+2.  **Register**: post to the node's own API. The node signs the registration with its consensus key, so it proves it holds the key it is registering.
+
+```bash
+curl -X POST http://127.0.0.1:8000/validator/register \
+     -H 'Content-Type: application/json' \
+     -d '{"deposit":100}'
+```
+
+The registration takes effect in the next epoch, and your node then starts taking
+its share of the round-robin schedule.
 
 If the node runs with `NOCOSTCOIN_API_TOKEN` set, add the bearer token to any
 write request, for example:
@@ -119,4 +126,6 @@ curl -X POST http://127.0.0.1:8000/wallet/new \
      -H "Authorization: Bearer $NOCOSTCOIN_API_TOKEN"
 ```
 
-Because Nocostcoin uses **Secret Leader Election**, your node will automatically start producing blocks when selected, without revealing your identity beforehand!
+Because Nocostcoin uses a **deterministic round-robin schedule**, your node will
+start producing blocks when its turn comes up, and it gets an equal share of the
+slots no matter how many coins it holds.

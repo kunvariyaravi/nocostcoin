@@ -57,8 +57,9 @@ export default function Whitepaper() {
                             <h3 className="text-2xl font-semibold text-white mb-4">3.1 Consensus: Proof of Determinism (PoD)</h3>
                             <p>Nodes agree on the state using a deterministic, strictly ordered schedule based on Verified Random Functions (VRF).</p>
                             <ul className="list-disc pl-6 space-y-2 mt-4">
-                                <li><strong>Secret Leader Election (SLE)</strong>: Using <code>VRF(PrivateKey, Seed)</code>, validators determine if it is their turn to propose a block without broadcasting their identity beforehand. This eliminates DDoS vectors.</li>
-                                <li><strong>Instant Finality</strong>: A 2/3 weighted vote ensures that once a block is finalized, it cannot be reverted. &quot;Probabilistic finality&quot; is unacceptable for automated agents.</li>
+                                <li><strong>Deterministic Leader Schedule</strong>: The schedule is round-robin over the active validators, so every validator produces an equal share of the slots. There is no stake weighting: holding more coins buys no additional blocks.</li>
+                                <li><strong>Proof of Possession</strong>: Using <code>VRF(PrivateKey, Seed)</code>, the producer proves it holds the consensus key it claims, and every node verifies that proof deterministically.</li>
+                                <li><strong>Instant Finality</strong>: A 2/3 vote by validator count ensures that once a block is finalized, it cannot be reverted. &quot;Probabilistic finality&quot; is unacceptable for automated agents.</li>
                             </ul>
 
                             <h3 className="text-2xl font-semibold text-white mb-4 mt-8">3.2 State Machine</h3>
@@ -70,12 +71,16 @@ export default function Whitepaper() {
                                 <li><strong>Channel Registry</strong>: State of open payment channels.</li>
                             </ul>
 
-                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">3.3 Spam Prevention: Zero-Knowledge Puzzles</h3>
-                            <p>To enable zero-fee transactions without opening the network to spam, Nocostcoin implements a client-side Proof-of-Work (PoW) puzzle requirement.</p>
+                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">3.3 Spam Prevention</h3>
+                            <p>
+                                Zero-fee transactions mean there is no economic cost to
+                                spam, so spam resistance currently comes from protocol
+                                limits rather than from fees.
+                            </p>
                             <ul className="list-disc pl-6 space-y-2 mt-4">
-                                <li><strong>Adaptive Difficulty</strong>: The difficulty of the puzzle scales dynamically with network congestion. During quiet periods, the puzzle takes milliseconds to solve. During attacks, it becomes computationally expensive.</li>
-                                <li><strong>Memory-Hard Algorithm</strong>: We use a variant of Argon2, forcing attackers to use memory resources, which cannot be easily parallelized on ASICs.</li>
-                                <li><strong>Pre-Computation Prevention</strong>: Puzzles are salted with the latest block hash, preventing attackers from generating valid transactions ahead of time.</li>
+                                <li><strong>Mempool Cap</strong>: The mempool holds a bounded number of transactions, so a flood cannot grow the node&apos;s memory without limit.</li>
+                                <li><strong>Sequential Nonces</strong>: Each account&apos;s transactions must use consecutive nonces, so a single account cannot flood the mempool with parallel transactions.</li>
+                                <li><strong>One-Time Faucet Claims</strong>: Each address can claim from the faucet once, ever, which bounds the outflow.</li>
                             </ul>
                         </section>
 
@@ -142,7 +147,9 @@ export default function Whitepaper() {
                             <h3 className="text-2xl font-semibold text-white mb-4">5.1 Implemented Protections</h3>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
                                 <li><strong>VRF Grinding Prevention</strong>: Chained randomness makes pre-computing advantageous slots impossible</li>
-                                <li><strong>Equivocation Slashing</strong>: Validators lose stake for signing multiple blocks at the same slot</li>
+                                <li><strong>Equivocation Slashing</strong>: A validator that signs two different blocks for the same slot is slashed and loses its deposit</li>
+                                <li><strong>Validator Deposit</strong>: Joining the validator set costs a refundable 100 NCC deposit, so flooding the schedule with throwaway keys is not free</li>
+                                <li><strong>Registration Proof</strong>: A validator registration carries a Schnorrkel signature by the consensus key, so nobody can register a key they do not hold</li>
                                 <li><strong>Merkle Proofs</strong>: All state transitions include Merkle root validation</li>
                                 <li><strong>Atomic Updates</strong>: Failed transactions roll back state changes</li>
                             </ul>
@@ -191,20 +198,23 @@ export default function Whitepaper() {
                                 Unlike traditional blockchains that treat blockspace as a commodity to be auctioned, Nocostcoin treats it as a public utility protected by computational barriers rather than financial ones.
                             </p>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
-                                <li><strong>User Cost</strong>: Zero financial cost. Time-cost (computation) is negligible for legitimate users but prohibitive for spammers.</li>
+                                <li><strong>User Cost</strong>: Zero financial cost. There are no fees to bid for blockspace.</li>
                                 <li><strong>Validator Incentives</strong>: Validators are rewarded via block rewards (inflation) rather than fees, aligning long-term network security with token value.</li>
                             </ul>
 
                             <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.2 Token Supply</h3>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
-                                <li><strong>Initial Supply</strong>: 1M per node (Testnet)</li>
-                                <li><strong>Inflationary Rewards</strong>: 2.5% annual inflation allocated to validators.</li>
+                                <li><strong>Genesis Supply</strong>: 11,296,000 NCC - a 10,000,000 NCC faucet float and a 1,296,000 NCC reward pool.</li>
+                                <li><strong>Inflationary Rewards</strong>: 1,296,000 NCC minted every 720 epochs (30 days) into the reward pool.</li>
+                                <li><strong>Block Reward</strong>: 1 NCC to the producer of each block, paid out of the reward pool.</li>
+                                <li><strong>Faucet</strong>: 100 NCC per address, one claim per address ever.</li>
                             </ul>
 
-                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.3 Staking</h3>
+                            <h3 className="text-2xl font-semibold text-white mb-4 mt-8">7.3 Validator Deposits</h3>
                             <ul className="list-disc pl-6 text-slate-400 space-y-2">
-                                <li><strong>Minimum Stake</strong>: 0.1% of total network stake</li>
-                                <li><strong>Slashing</strong>: 100% of stake for equivocation</li>
+                                <li><strong>Minimum Deposit</strong>: 100 NCC, refundable on exit</li>
+                                <li><strong>Forfeiture</strong>: 100% of the deposit for equivocation</li>
+                                <li><strong>Slot Share</strong>: Equal - 1/N of the slots for N active validators. There is no stake, so more coins buy no more blocks.</li>
                             </ul>
                         </section>
 
@@ -213,7 +223,7 @@ export default function Whitepaper() {
                             <div className="space-y-6">
                                 <div>
                                     <h3 className="text-xl font-bold text-green-400 mb-2">✅ Phase 1 - Completed</h3>
-                                    <p className="text-slate-400">Core consensus (PoD), Native primitives, libp2p networking, RocksDB storage, VRF-based leader election</p>
+                                    <p className="text-slate-400">Core consensus (PoD), Native primitives, libp2p networking, RocksDB storage, deterministic round-robin leader schedule</p>
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-bold text-yellow-400 mb-2">🚧 Phase 2 - In Progress</h3>

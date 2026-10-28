@@ -10,6 +10,9 @@ use schnorrkel::PublicKey;
 use metrics::{gauge, counter, histogram};
 use std::time::Instant;
 
+/// The reward paid to the producer of each block, in NCC.
+pub const BLOCK_REWARD: u64 = 1;
+
 pub struct Chain {
     pub storage: Storage,
     pub head: String, // Hash of the current head
@@ -40,16 +43,36 @@ impl Chain {
             storage.store_head(&genesis_block.hash).expect("Failed to store genesis head");
             genesis_block.hash.clone()
         };
-        
+
+        // Rebuild the validator set from disk. The round-robin schedule is a
+        // function of the set's exact membership and order, so it has to be
+        // restored exactly or the node would produce a different chain.
+        let validators = match storage.get_validators() {
+            Ok(Some(v)) if !v.is_empty() => {
+                tracing::info!("Restored {} validators from storage", v.len());
+                ValidatorSet::from_validators(v)
+            }
+            _ => ValidatorSet::new(),
+        };
+
         Self {
             storage: storage.clone(),
             head: head.clone(),
             consensus: Consensus::new(genesis_time),
             state: State::new(storage),
-            validators: ValidatorSet::new(),
+            validators,
             seen_headers: HashMap::new(),
             votes: HashMap::new(),
             finalized_head: head, // Initially genesis is finalized
+        }
+    }
+
+    /// Persist the validator set.
+    ///
+    /// The schedule depends on the set, so a restart must restore it exactly.
+    pub fn persist_validators(&self) {
+        if let Err(e) = self.storage.store_validators(&self.validators.get_all_validators()) {
+            tracing::error!("Failed to persist validator set: {}", e);
         }
     }
 
@@ -118,11 +141,39 @@ impl Chain {
         if !block.header.state_root.is_empty() {
             let calculated_state_root = self.state.get_root_hash();
             if block.header.state_root != calculated_state_root {
-                tracing::error!("State root mismatch. Expected: {}, Got: {}", 
+                tracing::error!("State root mismatch. Expected: {}, Got: {}",
                     block.header.state_root, calculated_state_root);
                 self.state.discard_changes();
                 return false;
             }
+        }
+
+        // 3c. Block rewards.
+        //
+        // The producer of this block gets 1 NCC, paid out of the monthly
+        // reward pool. The pool is topped up once per reward period, so the
+        // total supply grows by a fixed amount every 30 days.
+        if let Some(producer) = self.validators.get_validator(&block.header.validator_pubkey) {
+            let reward_address = producer.reward_address.clone();
+            if !self.state.pay_block_reward(&reward_address, BLOCK_REWARD) {
+                tracing::warn!("Reward pool is empty - block reward for slot {} skipped", block.header.slot);
+            }
+        }
+
+        // 3d. Top up the reward pool at the start of each reward period.
+        //
+        // A period is 720 epochs, which is 30 days. The pool is filled with
+        // exactly one period's worth of rewards: one NCC per block.
+        let period = self.consensus.get_reward_period(block.header.slot);
+        let parent_period = self.consensus.get_reward_period(parent_block.header.slot);
+        if period > parent_period {
+            let pool = crate::pools::reward_pool_address();
+            self.state.mint(&pool, crate::consensus::REWARD_PER_PERIOD);
+            tracing::info!(
+                "Minted {} NCC into the reward pool for period {}",
+                crate::consensus::REWARD_PER_PERIOD,
+                period
+            );
         }
 
         // 4. Fork Choice
@@ -156,25 +207,32 @@ impl Chain {
         for tx in &block.transactions {
             // Validator Management Logic (after state applied balance changes)
             match &tx.data {
-                 crate::transaction::TransactionData::RegisterValidator { stake } => {
-                     // Balance is already deducted by state.apply_transaction
-                     if let Err(e) = self.validators.register_validator(tx.sender.clone(), *stake, block.header.epoch) {
+                 crate::transaction::TransactionData::RegisterValidator { consensus_pubkey, deposit, .. } => {
+                     // The deposit is already deducted by state.apply_transaction.
+                     // The registration takes effect in the NEXT epoch, so the
+                     // active set cannot change while an epoch is running and
+                     // old blocks always re-validate against the same set.
+                     let registered_epoch = block.header.epoch + 1;
+                     if let Err(e) = self.validators.register_validator(
+                         consensus_pubkey.clone(),
+                         tx.sender.clone(),
+                         *deposit,
+                         registered_epoch,
+                         block.header.slot,
+                     ) {
                          println!("Failed to register validator: {}", e);
-                         // TODO: If this fails, we should technically revert the transaction or handle it.
-                         // For now, if state applied it (deducted balance), but this fails, user loses money?
-                         // Ideally validate_block logic checks this BEFORE execution.
-                         // We are safe because register_validator checks duplicate.
-                         // BUT min stake check is in validate_logic? No, just >0.
-                         // Core logic should be consistent.
+                     } else {
+                         self.persist_validators();
                      }
                  },
                  crate::transaction::TransactionData::UnregisterValidator => {
                      match self.validators.unregister_validator(&tx.sender) {
-                         Ok(stake) => {
-                             // Refund stake
+                         Ok(deposit) => {
+                             // Refund the deposit
                              let mut account = self.state.get_account(&tx.sender).unwrap_or(crate::state::Account::new(0));
-                             account.balance += stake;
+                             account.balance += deposit;
                              self.state.pending_changes.insert(tx.sender.clone(), account);
+                             self.persist_validators();
                          },
                          Err(e) => println!("Failed to unregister validator: {}", e),
                      }
@@ -304,20 +362,22 @@ impl Chain {
 
     fn check_finality(&mut self, block_hash: &str) {
         if let Some(votes) = self.votes.get(block_hash) {
-            let mut total_vote_stake = 0;
-            let total_stake = self.validators.get_total_stake();
-            
+            // Count the distinct validators that voted. There is no stake
+            // weighting, so finality is a share of the validator count.
+            let mut voted: std::collections::HashSet<&Vec<u8>> = std::collections::HashSet::new();
             for vote in votes {
-                if let Some(validator) = self.validators.get_validator(&vote.validator_pubkey) {
-                    total_vote_stake += validator.stake;
+                if self.validators.is_validator(&vote.validator_pubkey) {
+                    voted.insert(&vote.validator_pubkey);
                 }
             }
 
-            // Threshold: > 2/3 of total stake
-            if total_stake > 0 && total_vote_stake as f64 > (total_stake as f64 * 0.6666) {
+            let total = self.validators.count();
+            let needed = (total as f64 * 0.6666).ceil() as usize;
+
+            if total > 0 && voted.len() >= needed {
                 if self.finalized_head != *block_hash {
-                    tracing::info!("🎉 BLOCK FINALIZED: {} (Stake: {}/{})", block_hash, total_vote_stake, total_stake);
-                    
+                    tracing::info!("🎉 BLOCK FINALIZED: {} (Votes: {}/{})", block_hash, voted.len(), total);
+
                     // Update finalized head
                     self.finalized_head = block_hash.to_string();
                 }
@@ -394,7 +454,13 @@ mod tests {
         // Register a validator
         let keypair = Crypto::generate_keypair();
         let pubkey = keypair.public.to_bytes().to_vec();
-        chain.validators.register_validator(pubkey.clone(), 1000, 0).unwrap();
+        chain.validators.register_validator(
+            pubkey.clone(),
+            pubkey.clone(),
+            crate::validator::VALIDATOR_DEPOSIT,
+            0,
+            0,
+        ).unwrap();
 
         // Create a block
         let mut block = create_next_block(&genesis, 1);
@@ -436,7 +502,13 @@ mod tests {
         // Register a validator
         let keypair = Crypto::generate_keypair();
         let pubkey = keypair.public.to_bytes().to_vec();
-        chain.validators.register_validator(pubkey.clone(), 1000, 0).unwrap();
+        chain.validators.register_validator(
+            pubkey.clone(),
+            pubkey.clone(),
+            crate::validator::VALIDATOR_DEPOSIT,
+            0,
+            0,
+        ).unwrap();
 
         // Setup: Fund sender
         let sender_pair = crate::wallet::Wallet::new().keypair;

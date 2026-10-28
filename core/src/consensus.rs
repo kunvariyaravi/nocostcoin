@@ -7,6 +7,17 @@ use crate::validator::ValidatorSet;
 pub const SLOT_DURATION_MS: u64 = 2000; // 2 seconds
 pub const SLOTS_PER_EPOCH: u64 = 1800; // 1 hour / 2 seconds = 1800 slots
 
+/// Number of epochs in a reward period.
+///
+/// 720 epochs of 1 hour is 30 days, so a reward period is a month.
+pub const EPOCHS_PER_REWARD_PERIOD: u64 = 720;
+
+/// New NCC minted into the reward pool each reward period.
+///
+/// This is one NCC per block: a period holds
+/// `720 * 1800 = 1_296_000` slots, and each block pays its producer 1 NCC.
+pub const REWARD_PER_PERIOD: u64 = EPOCHS_PER_REWARD_PERIOD * SLOTS_PER_EPOCH;
+
 
 pub struct Consensus {
     genesis_time: i64,
@@ -27,6 +38,13 @@ impl Consensus {
 
     pub fn get_epoch(&self, slot: u64) -> u64 {
         slot / SLOTS_PER_EPOCH
+    }
+
+    /// The reward period a slot falls in.
+    ///
+    /// One period is 720 epochs, which is 30 days at one hour per epoch.
+    pub fn get_reward_period(&self, slot: u64) -> u64 {
+        slot / (EPOCHS_PER_REWARD_PERIOD * SLOTS_PER_EPOCH)
     }
 
     // Fork Choice Rule: Longest Chain (Highest Slot) with VRF Tiebreaker
@@ -79,10 +97,16 @@ impl Consensus {
              return Err("Invalid VRF signature/proof".to_string());
          }
 
-        // 4. Stake-Weighted Threshold Check (Did they allowably win?)
-        // This replaces the Rank check.
-        if !validators.is_slot_leader(&block.header.validator_pubkey, &block.header.vrf_output) {
-            return Err("Validator VRF output did not meets the stake-weighted threshold (Not a leader)".to_string());
+        // 4. Schedule Check (Round-Robin)
+        // The producer must be the validator whose turn it is. There is no
+        // stake weighting: every active validator gets an equal share of the
+        // slots, and the schedule is fully deterministic.
+        if !validators.is_slot_leader(
+            &block.header.validator_pubkey,
+            block.header.slot,
+            block.header.epoch,
+        ) {
+            return Err("Validator is not the scheduled leader for this slot".to_string());
         }
 
         // 6. Transaction Root Validation
