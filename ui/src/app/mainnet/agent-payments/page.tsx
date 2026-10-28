@@ -18,7 +18,7 @@ interface AgentStats {
     block_time_seconds: number;
     payments_in_last_100_blocks: number;
     volume_in_last_100_blocks: number;
-    recent: { tx: string; payer: string; amount: number; slot: number }[];
+    recent: { tx: string; block: string; payer: string; amount: number; slot: number }[];
 }
 
 const CURL_EXAMPLE = `# Pay for the resource, then call it.
@@ -327,9 +327,12 @@ export default function AgentPaymentsPage() {
                                 key={`${r.tx}-${r.slot}`}
                                 className="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm"
                             >
-                                <code className="text-blue-300 font-mono text-xs break-all">
+                                <Link
+                                    href={`/mainnet/explorer/tx/${r.tx}`}
+                                    className="text-blue-300 font-mono text-xs hover:underline"
+                                >
                                     {r.tx.slice(0, 20)}...
-                                </code>
+                                </Link>
                                 <span className="text-slate-400 shrink-0 ml-4">
                                     {r.amount} NCC &middot; slot {r.slot}
                                 </span>

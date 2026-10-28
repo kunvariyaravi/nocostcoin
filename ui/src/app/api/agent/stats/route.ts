@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { NODE_API_URL } from '@/lib/nodeApi';
 import {
     AGENT_PRICE_NCC,
@@ -8,6 +9,31 @@ import {
 } from '@/lib/agentPayments';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The transaction hash, computed the way the node computes it.
+ *
+ * The blocks endpoint returns raw transactions without a hash, so it has to be
+ * derived here: sha256(sender || receiver || nonce || "NativeTransfer" || amount).
+ */
+function transactionHash(
+    sender: number[],
+    receiver: number[],
+    nonce: number,
+    amount: number
+): string {
+    const hash = createHash('sha256');
+    hash.update(Buffer.from(sender));
+    hash.update(Buffer.from(receiver));
+    const nonceBuffer = Buffer.alloc(8);
+    nonceBuffer.writeBigUInt64LE(BigInt(nonce));
+    hash.update(nonceBuffer);
+    hash.update(Buffer.from('NativeTransfer', 'utf-8'));
+    const amountBuffer = Buffer.alloc(8);
+    amountBuffer.writeBigUInt64LE(BigInt(amount));
+    hash.update(amountBuffer);
+    return hash.digest('hex');
+}
 
 /**
  * Live figures about the paid API, read straight off the chain.
@@ -35,7 +61,13 @@ export async function GET() {
 
         let payments = 0;
         let volume = 0;
-        const recent: { tx: string; payer: string; amount: number; slot: number }[] = [];
+        const recent: {
+            tx: string;
+            block: string;
+            payer: string;
+            amount: number;
+            slot: number;
+        }[] = [];
 
         for (const block of blocks) {
             for (const tx of block.transactions || []) {
@@ -46,7 +78,8 @@ export async function GET() {
                 payments += 1;
                 volume += amount;
                 recent.push({
-                    tx: block.hash,
+                    tx: transactionHash(tx.sender || [], tx.receiver || [], tx.nonce || 0, amount),
+                    block: block.hash,
                     payer: toHex(tx.sender || []).slice(0, 16),
                     amount,
                     slot: block.header?.slot ?? 0,
