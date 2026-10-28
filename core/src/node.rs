@@ -736,14 +736,15 @@ impl Node {
                 while let Ok(cmd) = api_rx.try_recv() {
                     match cmd {
                         crate::api::ApiCommand::GetStats(respond_to) => {
-                             let stats = crate::api::NodeStats {
-                                 height: chain.get_height(),
-                                 head_hash: chain.head.clone(),
-                                 peer_count: sync_manager.get_peers().len(),
-                                 balance: chain.state.get_balance(&my_address),
-                                 address: hex::encode(my_address.clone()),
-                             };
-                             let _ = respond_to.send(stats);
+                            let stats = crate::api::NodeStats {
+                                height: chain.get_height(),
+                                head_hash: chain.head.clone(),
+                                peer_count: sync_manager.get_peers().len(),
+                                balance: chain.state.get_balance(&my_address),
+                                address: hex::encode(my_address.clone()),
+                                validator_pubkey: hex::encode(validator_keypair.public.to_bytes()),
+                            };
+                            let _ = respond_to.send(stats);
                         }
                         crate::api::ApiCommand::GetLatestBlock(respond_to) => {
                             let block = chain.get_block(&chain.head);

@@ -116,6 +116,10 @@ pub struct NodeStats {
     pub peer_count: usize, // Placeholder, implementing real peer count might require more wiring
     pub balance: u64,
     pub address: String,
+    /// The node's Schnorrkel consensus key. This - not the Ed25519 wallet
+    /// address - is the identity the validator set is keyed by, so it is what
+    /// a client needs in order to ask whether this node is a validator.
+    pub validator_pubkey: String,
 }
 
 /// Configuration for the API server
