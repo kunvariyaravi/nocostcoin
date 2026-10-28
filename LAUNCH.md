@@ -63,7 +63,10 @@ set as `NOCOSTCOIN_API_TOKEN` on the Vercel project too.
 ## Ceremony (run on the validator's own machine)
 
 The launch ships **one validator**, the GCP node. It wins every slot, so blocks
-come at the full rate.
+come at the full rate. This is a deliberate, final architecture decision - the
+chain is a single-validator chain, not a network that will grow one. The genesis
+validator set is frozen, so adding a validator later would mean re-freezing the
+genesis and restarting the chain; that is not planned.
 
 1. Build the secured binary (wait for `C:\tmp\sec-build.log` = Finished release).
 2. Generate the identity ON the machine that will run it. On the GCP VM:
