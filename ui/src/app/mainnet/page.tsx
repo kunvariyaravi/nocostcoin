@@ -17,6 +17,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import * as BrowserWallet from '@/lib/wallet/browserWallet';
 
 import TransactionConfirmation, { TransactionData } from '@/components/TransactionConfirmation/TransactionConfirmation';
+import ValidatorEconomics from '@/components/ValidatorEconomics/ValidatorEconomics';
 
 interface Stats {
     height: number;
@@ -363,25 +364,41 @@ export default function MainnetDashboard() {
                 </div>
 
                 {/* 3. Run a Node Card */}
-                <div className="card border-purple-500/20 bg-slate-800/50 flex flex-col">
-                    <div className="flex items-center gap-3 mb-4 text-purple-400">
+                <div className="card border-emerald-500/30 bg-emerald-500/5 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4 text-emerald-400">
                         <CpuChipIcon className="w-6 h-6" />
                         <h3 className="text-lg font-bold">Run a Node</h3>
                     </div>
                     <div className="flex-1 flex flex-col justify-between">
                         <p className="text-sm text-slate-400 mb-4">
-                            Support the network and earn rewards by running your own validator node.
+                            Earn <strong className="text-emerald-400">1,296,000 NCC every 30 days</strong> -
+                            one NCC for every block your node produces. Join for a
+                            refundable 100 NCC deposit.
                         </p>
 
                         <a
                             href="/documentation/how-to-run-node"
                             target="_blank"
-                            className="w-full btn-secondary border-purple-500/50 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400 hover:text-white transition-all text-center"
+                            className="w-full btn-secondary border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 hover:border-emerald-400 hover:text-white transition-all text-center"
                         >
                             Read Setup Guide
                         </a>
                     </div>
                 </div>
+            </div>
+
+            {/* Validator Economics */}
+            <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-white">Validator Economics</h2>
+                    <a
+                        href="/mainnet/validator"
+                        className="text-sm text-emerald-400 hover:text-emerald-300"
+                    >
+                        Validator dashboard
+                    </a>
+                </div>
+                <ValidatorEconomics />
             </div>
         </div>
     );

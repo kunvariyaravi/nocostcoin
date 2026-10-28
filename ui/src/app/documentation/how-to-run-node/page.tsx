@@ -7,8 +7,34 @@ export default function NodeGuidePage() {
 
             <div className="prose prose-invert prose-lg max-w-none">
                 <p className="text-xl text-slate-300 mb-8 leading-relaxed">
-                    Running a node is the best way to support the Nocostcoin network.
-                    As a node operator, you validate transactions, secure the blockchain, and become an integral part of the decentralized infrastructure.
+                    Running a node pays. The chain mints <strong className="text-emerald-400">1,296,000 NCC
+                    every 30 days</strong> and splits it between the validators that
+                    produce blocks - one NCC for every block your node makes. There
+                    is no stake and no lottery: every validator gets an equal
+                    share, so more coins buy you nothing extra.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    <div className="bg-slate-800/50 p-6 rounded-xl border border-emerald-500/30">
+                        <p className="text-slate-500 text-sm">Minted every 30 days</p>
+                        <p className="text-2xl font-bold text-white mt-1">1,296,000 NCC</p>
+                    </div>
+                    <div className="bg-slate-800/50 p-6 rounded-xl border border-emerald-500/30">
+                        <p className="text-slate-500 text-sm">Per block produced</p>
+                        <p className="text-2xl font-bold text-white mt-1">1 NCC</p>
+                    </div>
+                    <div className="bg-slate-800/50 p-6 rounded-xl border border-emerald-500/30">
+                        <p className="text-slate-500 text-sm">Cost to join</p>
+                        <p className="text-2xl font-bold text-white mt-1">100 NCC</p>
+                        <p className="text-xs text-slate-500 mt-1">refundable deposit</p>
+                    </div>
+                </div>
+
+                <p className="text-slate-400 mb-8">
+                    The pool is fixed, so your share falls as more validators
+                    join. Anyone can join - the only requirement is the refundable
+                    deposit, which is what stops one operator flooding the
+                    schedule with throwaway keys.
                 </p>
 
                 {/* Quick Start Card */}

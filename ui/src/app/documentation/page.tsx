@@ -19,7 +19,20 @@ export default function DocumentationPage() {
                         </svg>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2">Run a Node</h3>
-                    <p className="text-slate-400">Step-by-step guide to setting up a validator node on the Nocostcoin testnet.</p>
+                    <p className="text-slate-400">Earn 1,296,000 NCC every 30 days by validating blocks. Step-by-step setup guide.</p>
+                </Link>
+
+                <Link
+                    href="/documentation/agent-payments"
+                    className="block p-6 bg-slate-900 border border-slate-800 rounded-lg hover:border-violet-500/50 hover:bg-slate-800/50 transition-all group"
+                >
+                    <div className="w-12 h-12 bg-violet-900/30 rounded-lg flex items-center justify-center mb-4 group-hover:bg-violet-900/50 transition-colors">
+                        <svg className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Agent Payments</h3>
+                    <p className="text-slate-400">Let an AI agent pay for an API call with NCC instead of an API key.</p>
                 </Link>
 
                 <Link
@@ -45,7 +58,7 @@ export default function DocumentationPage() {
                         </svg>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2">Architecture</h3>
-                    <p className="text-slate-400">Deep dive into the Proof of Time consensus and network topology.</p>
+                    <p className="text-slate-400">Deep dive into the Proof of Determinism consensus and network topology.</p>
                 </Link>
             </div>
         </div>

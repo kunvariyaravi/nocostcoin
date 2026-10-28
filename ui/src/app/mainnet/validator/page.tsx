@@ -9,6 +9,7 @@ import {
     ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { useWallet } from '@/contexts/WalletContext';
+import ValidatorEconomics from '@/components/ValidatorEconomics/ValidatorEconomics';
 
 interface ValidatorInfo {
     pubkey: string;
@@ -151,6 +152,14 @@ export default function ValidatorPage() {
                         {loading ? '-' : thisNode ? 'Validator' : 'Observer'}
                     </h3>
                 </div>
+            </div>
+
+            <div className="card border-slate-700">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <ChartBarIcon className="w-6 h-6 text-slate-400" />
+                    Validator Economics
+                </h2>
+                <ValidatorEconomics />
             </div>
 
             <div className="card border-slate-700">

@@ -8,7 +8,8 @@ import {
     WalletIcon,
     CubeTransparentIcon,
     ServerStackIcon,
-    GlobeAltIcon
+    GlobeAltIcon,
+    BoltIcon
 } from '@heroicons/react/24/outline';
 
 export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -36,6 +37,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
         { name: 'Wallet', href: '/mainnet/wallet', icon: WalletIcon },
         { name: 'Explorer', href: '/mainnet/explorer', icon: CubeTransparentIcon },
         { name: 'Validator', href: '/mainnet/validator', icon: ServerStackIcon },
+        { name: 'Agent Pay', href: '/mainnet/agent-payments', icon: BoltIcon },
         { name: 'Network', href: '/mainnet/network', icon: GlobeAltIcon },
     ];
 
