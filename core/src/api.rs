@@ -84,12 +84,16 @@ pub struct FaucetRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RegisterValidatorRequest {
-    /// Hex-encoded 32-byte Schnorrkel consensus key.
+    /// Hex-encoded 32-byte Schnorrkel consensus key. Optional: when it is
+    /// omitted the node registers its own key.
+    #[serde(default)]
     pub consensus_pubkey: String,
     /// Refundable deposit in NCC.
     pub deposit: u64,
     /// Hex-encoded Schnorrkel signature by the consensus key, proving the
-    /// sender holds it.
+    /// sender holds it. Optional: when it is omitted the node signs the
+    /// registration with its own consensus key.
+    #[serde(default)]
     pub proof: String,
 }
 
