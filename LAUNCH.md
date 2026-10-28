@@ -34,7 +34,7 @@ Vercel's server environment.
 - [x] P0-1 ceremony RUN: this validator's pubkey and wallet address are in
       `config/genesis.toml` and the four mainnet configs
 - [x] P0-2 image built: Cloud Build -> Artifact Registry
-      (`us-central1-docker.pkg.dev/project-27b2e686-c994-416d-ba1/nocostcoin/node:v2`)
+      (`us-central1-docker.pkg.dev/project-27b2e686-c994-416d-ba1/nocostcoin/node:v3`)
 - [x] P0-5 networking: static IP + PeerId published, firewall open 9000 TCP
 - [ ] P0-6 git tag: tag mainnet-genesis-v1
 - [ ] DNS: A record `api.nocostcoin.com` -> 34.173.45.47
@@ -48,7 +48,7 @@ Vercel's server environment.
 | Static IP | 34.173.45.47 |
 | Node API | http://34.173.45.47 (nginx, loopback 8000 behind it) |
 | P2P | 9000 (public) |
-| Image | `.../nocostcoin/node:v2` (188 MB) |
+| Image | `.../nocostcoin/node:v3` (188 MB) |
 | PeerId | `12D3KooWBcQetE4pFxvzomqjy5iHHzbEziHYqFjEm3DnxztqJ65T` |
 | bootstrap | `/ip4/34.173.45.47/tcp/9000/p2p/12D3KooWBcQetE4pFxvzomqjy5iHHzbEziHYqFjEm3DnxztqJ65T` |
 | Validator pubkey | `128587edd4d3903363c5b837e877dfdf12732f50d7acc2970dacdcae22048c2c` |
